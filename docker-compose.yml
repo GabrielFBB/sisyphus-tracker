@@ -1,25 +1,36 @@
-version: '3.9'
 services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: sisyphus
+      POSTGRES_USER: sisyphus_user
+      POSTGRES_PASSWORD: sisyphus_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./backend
+    command: gunicorn core.wsgi:application --bind 0.0.0.0:8000
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://sisyphus_user:sisyphus_pass@db:5432/sisyphus
+    depends_on:
+      - db
+
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    build: ./frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     ports:
       - "3000:3000"
     depends_on:
       - backend
-    volumes:
-      - ./frontend:/app
-    environment:
-      - NODE_ENV=development
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app
-    environment:
-      - PYTHONUNBUFFERED=1
+volumes:
+  postgres_data:
