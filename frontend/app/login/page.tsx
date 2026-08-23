@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-import { api } from '@/src/lib/api';
-import { setTokens } from '@/src/lib/auth';
+import { api } from '@/app/lib/api';
+import { setTokens } from '@/app/lib/auth';
 
 export default function LoginPage() {
   const router = useRouter();

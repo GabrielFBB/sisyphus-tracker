@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
-import { clearTokens, isAuthenticated } from '@/src/lib/auth';
+import { clearTokens, isAuthenticated } from '@/app/lib/auth';
 
 export default function DashboardPage() {
   const router = useRouter();

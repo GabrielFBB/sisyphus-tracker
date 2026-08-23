@@ -1,23 +1,33 @@
 'use client';
 
-import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { api } from '@/src/lib/api';
-import { setTokens } from '@/src/lib/auth';
+import { useState } from 'react';
+import { api } from '@/app/lib/api';
+import { setTokens } from '@/app/lib/auth';
 
 export default function RegisterPage() {
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
-    const data = await api.post('/register/', { username, password });
-    if (data.access) {
-      setTokens(data.access, data.refresh);
-      router.push('/dashboard');
-    } else {
+    setError('');
+    setLoading(true);
+    try {
+      const data = await api.post('/register/', { username, password });
+      if (data.access) {
+        setTokens(data.access, data.refresh);
+        router.push('/dashboard');
+        return;
+      }
       setError(data.username?.[0] || 'Erro ao criar conta');
+    } catch {
+      setError('Erro ao ligar ao servidor');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -41,17 +51,21 @@ export default function RegisterPage() {
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleRegister()}
           className="w-full bg-gray-700 text-white p-3 rounded mb-6 outline-none"
         />
         <button
           onClick={handleRegister}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded font-bold"
+          disabled={loading}
+          className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white p-3 rounded font-bold"
         >
-          Registar
+          {loading ? 'A criar conta...' : 'Registar'}
         </button>
-        <p className="text-gray-400 mt-4 text-center">
+        <p className="text-gray-400 text-sm mt-4 text-center">
           Já tens conta?{' '}
-          <a href="/login" className="text-indigo-400 hover:underline">Entrar</a>
+          <Link href="/login" className="text-indigo-400 hover:underline">
+            Entrar
+          </Link>
         </p>
       </div>
     </div>
