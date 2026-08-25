@@ -1,4 +1,4 @@
-import { getToken, getRefreshToken, setTokens, clearTokens } from './auth';
+import { getToken, getRefresh, setTokens, clearTokens } from './auth';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://sisyphus-tracker.onrender.com';
 
@@ -18,8 +18,8 @@ async function request(endpoint: string, options: RequestInit = {}) {
 
   let response = await fetch(url, { ...options, headers });
 
-  // Se o token de acesso expirou (401), tenta renovar automaticamente
-  if (response.status === 401 && getRefreshToken()) {
+  // Se o token expirou (401), tenta renovar usando getRefresh()
+  if (response.status === 401 && getRefresh()) {
     const refreshed = await refreshAccessToken();
     if (refreshed) {
       headers['Authorization'] = `Bearer ${getToken()}`;
@@ -44,7 +44,7 @@ async function request(endpoint: string, options: RequestInit = {}) {
 
 async function refreshAccessToken(): Promise<boolean> {
   try {
-    const refreshToken = getRefreshToken();
+    const refreshToken = getRefresh();
     if (!refreshToken) return false;
 
     const res = await fetch(`${BASE_URL}/api/token/refresh/`, {
