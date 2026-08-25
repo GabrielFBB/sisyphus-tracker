@@ -1,13 +1,16 @@
-// Garante que a URL base não termina com barra e remove eventuais colchetes/espaços indesejados
+// Limpa colchetes, espaços, barras finais e /api duplicado
 const rawUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
-const API_URL = rawUrl.replace(/[\[\]]/g, '').replace(/\/$/, '');
+const API_URL = rawUrl
+  .replace(/[\[\]]/g, '')
+  .trim()
+  .replace(/\/$/, '')
+  .replace(/\/api$/, '');
 
 export const api = {
   async post(endpoint: string, data: object, token?: string) {
     const headers: HeadersInit = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    // Garante que o endpoint começa com barra
     const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
 
     const res = await fetch(`${API_URL}/api${path}`, {
