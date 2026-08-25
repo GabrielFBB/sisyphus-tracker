@@ -9,14 +9,13 @@ import { getToken, clearTokens } from '@/app/lib/auth';
 interface Habit {
   id: number;
   name: string;
-  description: string;
+  completed_today?: boolean;
 }
 
 export default function HabitsPage() {
   const router = useRouter();
   const [habits, setHabits] = useState<Habit[]>([]);
   const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -31,14 +30,10 @@ export default function HabitsPage() {
 
   const fetchHabits = async () => {
     try {
-      const token = getToken();
-      if (!token) return;
-      const data = await api.get('/habits/', token);
-      if (Array.isArray(data)) {
-        setHabits(data);
-      }
-    } catch (err) {
-      setError('Erro ao carregar os hábitos.');
+      const data = await api.get('/habits/');
+      if (Array.isArray(data)) setHabits(data);
+    } catch {
+      setError('Erro ao carregar a lista de hábitos.');
     }
   };
 
@@ -48,24 +43,39 @@ export default function HabitsPage() {
     setError('');
 
     try {
-      const token = getToken();
-      await api.post('/habits/', { name, description }, token!);
+      await api.post('/habits/', { name });
       setName('');
-      setDescription('');
       await fetchHabits();
-    } catch (err) {
-      setError('Erro ao criar hábito.');
+    } catch {
+      setError('Erro ao adicionar hábito.');
     } finally {
       setLoading(false);
     }
   };
 
+  const toggleHabit = async (habit: Habit) => {
+    try {
+      // Alterna o estado local para resposta instantânea
+      const updatedStatus = !habit.completed_today;
+      setHabits((prev) =>
+        prev.map((h) => (h.id === habit.id ? { ...h, completed_today: updatedStatus } : h))
+      );
+      
+      await api.put(`/habits/${habit.id}/`, {
+        name: habit.name,
+        completed_today: updatedStatus,
+      });
+    } catch {
+      setError('Erro ao atualizar hábito.');
+      await fetchHabits(); // Reverte em caso de erro
+    }
+  };
+
   const deleteHabit = async (id: number) => {
     try {
-      const token = getToken();
-      await api.delete(`/habits/${id}/`, token!);
+      await api.delete(`/habits/${id}/`);
       await fetchHabits();
-    } catch (err) {
+    } catch {
       setError('Erro ao eliminar hábito.');
     }
   };
@@ -99,38 +109,48 @@ export default function HabitsPage() {
 
         <div className="bg-gray-800 p-6 rounded-lg mb-6">
           <h2 className="text-lg font-semibold mb-4">Novo Hábito</h2>
-          <input
-            type="text"
-            placeholder="Nome do hábito (ex: Ler 15 págs, Treinar)"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full bg-gray-700 text-white p-3 rounded mb-3 outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-          <input
-            type="text"
-            placeholder="Descrição (opcional)"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full bg-gray-700 text-white p-3 rounded mb-4 outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-          <button
-            onClick={addHabit}
-            disabled={loading || !name.trim()}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-6 py-2 rounded font-bold transition-colors"
-          >
-            {loading ? 'A adicionar...' : 'Adicionar'}
-          </button>
+          <div className="flex gap-3">
+            <input
+              type="text"
+              placeholder="Ex: Beber água, Ler 10 págs..."
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addHabit()}
+              className="flex-1 bg-gray-700 text-white p-3 rounded outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <button
+              onClick={addHabit}
+              disabled={loading || !name.trim()}
+              className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-6 py-3 rounded font-bold transition-colors"
+            >
+              {loading ? 'A adicionar...' : 'Adicionar'}
+            </button>
+          </div>
         </div>
 
         <div className="space-y-3">
           {habits.length === 0 && (
-            <p className="text-gray-400 text-center py-4">Nenhum hábito ainda. Cria o primeiro!</p>
+            <p className="text-gray-400 text-center py-4">Nenhum hábito criado. Define o primeiro!</p>
           )}
           {habits.map((habit) => (
-            <div key={habit.id} className="bg-gray-800 p-4 rounded-lg flex items-center justify-between">
-              <div>
-                <p className="font-semibold">{habit.name}</p>
-                {habit.description && <p className="text-gray-400 text-sm">{habit.description}</p>}
+            <div
+              key={habit.id}
+              className="bg-gray-800 p-4 rounded-lg flex items-center justify-between transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => toggleHabit(habit)}
+                  className={`w-6 h-6 rounded-full border-2 flex items-center justify-between justify-center transition-colors ${
+                    habit.completed_today
+                      ? 'bg-emerald-500 border-emerald-500 text-white'
+                      : 'border-gray-500 hover:border-emerald-400'
+                  }`}
+                >
+                  {habit.completed_today && '✓'}
+                </button>
+                <span className={habit.completed_today ? 'line-through text-gray-400' : 'font-medium'}>
+                  {habit.name}
+                </span>
               </div>
               <button
                 onClick={() => deleteHabit(habit.id)}
