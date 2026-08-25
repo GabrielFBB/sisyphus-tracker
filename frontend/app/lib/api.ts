@@ -1,64 +1,74 @@
-// Limpa colchetes, espaços, barras finais e /api duplicado
-const rawUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
-const API_URL = rawUrl
-  .replace(/[\[\]]/g, '')
-  .trim()
-  .replace(/\/$/, '')
-  .replace(/\/api$/, '');
+import { getToken, getRefreshToken, setTokens, clearTokens } from './auth';
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://sisyphus-tracker.onrender.com';
+
+async function request(endpoint: string, options: RequestInit = {}) {
+  const url = `${BASE_URL}/api${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+
+  let token = getToken();
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  let response = await fetch(url, { ...options, headers });
+
+  // Se o token de acesso expirou (401), tenta renovar automaticamente
+  if (response.status === 401 && getRefreshToken()) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      headers['Authorization'] = `Bearer ${getToken()}`;
+      response = await fetch(url, { ...options, headers });
+    } else {
+      clearTokens();
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
+      throw new Error('Sessão expirada');
+    }
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw errorData;
+  }
+
+  if (response.status === 204) return null;
+  return response.json();
+}
+
+async function refreshAccessToken(): Promise<boolean> {
+  try {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return false;
+
+    const res = await fetch(`${BASE_URL}/api/token/refresh/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh: refreshToken }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      setTokens(data.access, refreshToken);
+      return true;
+    }
+  } catch {
+    // Falha silenciosa na renovação
+  }
+  return false;
+}
 
 export const api = {
-  async post(endpoint: string, data: object, token?: string) {
-    const headers: HeadersInit = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-
-    const res = await fetch(`${API_URL}/api${path}`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(data),
-    });
-
-    if (!res.ok) {
-      throw new Error(`Erro na requisição: ${res.status}`);
-    }
-
-    return res.json();
-  },
-
-  async get(endpoint: string, token?: string) {
-    const headers: HeadersInit = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-
-    const res = await fetch(`${API_URL}/api${path}`, {
-      method: 'GET',
-      headers,
-    });
-
-    if (!res.ok) {
-      throw new Error(`Erro na requisição: ${res.status}`);
-    }
-
-    return res.json();
-  },
-
-  async delete(endpoint: string, token?: string) {
-    const headers: HeadersInit = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-
-    const res = await fetch(`${API_URL}/api${path}`, {
-      method: 'DELETE',
-      headers,
-    });
-
-    if (!res.ok) {
-      throw new Error(`Erro na requisição: ${res.status}`);
-    }
-
-    return res.status;
-  },
+  get: (endpoint: string) => request(endpoint, { method: 'GET' }),
+  post: (endpoint: string, body: any) =>
+    request(endpoint, { method: 'POST', body: JSON.stringify(body) }),
+  put: (endpoint: string, body: any) =>
+    request(endpoint, { method: 'PUT', body: JSON.stringify(body) }),
+  delete: (endpoint: string) => request(endpoint, { method: 'DELETE' }),
 };
