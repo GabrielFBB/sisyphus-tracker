@@ -29,34 +29,54 @@ export default function WorkoutPage() {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const token = getToken();
-    if (!token) { router.push('/login'); return; }
+    if (!token) {
+      router.push('/login');
+      return;
+    }
     fetchWorkouts();
   }, []);
 
   const fetchWorkouts = async () => {
-    const token = getToken();
-    const data = await api.get('/workouts/', token!);
-    if (Array.isArray(data)) setWorkouts(data);
+    try {
+      const token = getToken();
+      if (!token) return;
+      const data = await api.get('/workouts/', token);
+      if (Array.isArray(data)) setWorkouts(data);
+    } catch {
+      setError('Erro ao carregar o histórico de treinos.');
+    }
   };
 
   const addWorkout = async () => {
-    if (!name) return;
+    if (!name.trim()) return;
     setLoading(true);
-    const token = getToken();
-    await api.post('/workouts/', { name, date, notes }, token!);
-    setName('');
-    setNotes('');
-    fetchWorkouts();
-    setLoading(false);
+    setError('');
+
+    try {
+      const token = getToken();
+      await api.post('/workouts/', { name, date, notes }, token!);
+      setName('');
+      setNotes('');
+      await fetchWorkouts();
+    } catch {
+      setError('Erro ao registar treino.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const deleteWorkout = async (id: number) => {
-    const token = getToken();
-    await api.delete(`/workouts/${id}/`, token!);
-    fetchWorkouts();
+    try {
+      const token = getToken();
+      await api.delete(`/workouts/${id}/`, token!);
+      await fetchWorkouts();
+    } catch {
+      setError('Erro ao eliminar treino.');
+    }
   };
 
   return (
@@ -64,45 +84,63 @@ export default function WorkoutPage() {
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <Link href="/dashboard" className="text-gray-400 hover:text-white text-sm mb-2 block">← Dashboard</Link>
-            <h1 className="text-3xl font-bold">Workout</h1>
+            <Link href="/dashboard" className="text-gray-400 hover:text-white text-sm mb-2 block">
+              ← Dashboard
+            </Link>
+            <h1 className="text-3xl font-bold">Treinos</h1>
           </div>
-          <button onClick={() => { clearTokens(); router.push('/login'); }} className="text-sm text-gray-400 hover:text-white">Sair</button>
+          <button
+            onClick={() => {
+              clearTokens();
+              router.push('/login');
+            }}
+            className="text-sm text-gray-400 hover:text-white"
+          >
+            Sair
+          </button>
         </div>
+
+        {error && (
+          <div className="bg-red-500/10 border border-red-500 text-red-500 p-3 rounded mb-4 text-sm">
+            {error}
+          </div>
+        )}
 
         <div className="bg-gray-800 p-6 rounded-lg mb-6">
           <h2 className="text-lg font-semibold mb-4">Novo Treino</h2>
           <input
             type="text"
-            placeholder="Nome do treino"
+            placeholder="Nome do treino (ex: Supino / Full Body)"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full bg-gray-700 text-white p-3 rounded mb-3 outline-none"
+            className="w-full bg-gray-700 text-white p-3 rounded mb-3 outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="w-full bg-gray-700 text-white p-3 rounded mb-3 outline-none"
+            className="w-full bg-gray-700 text-white p-3 rounded mb-3 outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <input
             type="text"
-            placeholder="Notas (opcional)"
+            placeholder="Notas (ex: 4x8 bench press 80kg, RPE 8)"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="w-full bg-gray-700 text-white p-3 rounded mb-4 outline-none"
+            className="w-full bg-gray-700 text-white p-3 rounded mb-4 outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <button
             onClick={addWorkout}
-            disabled={loading}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-6 py-2 rounded font-bold"
+            disabled={loading || !name.trim()}
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-6 py-2 rounded font-bold transition-colors"
           >
             {loading ? 'A adicionar...' : 'Adicionar'}
           </button>
         </div>
 
         <div className="space-y-3">
-          {workouts.length === 0 && <p className="text-gray-400 text-center">Nenhum treino ainda. Cria o primeiro!</p>}
+          {workouts.length === 0 && (
+            <p className="text-gray-400 text-center py-4">Nenhum treino ainda. Regista o primeiro!</p>
+          )}
           {workouts.map((workout) => (
             <div key={workout.id} className="bg-gray-800 p-4 rounded-lg flex items-center justify-between">
               <div>
@@ -112,7 +150,7 @@ export default function WorkoutPage() {
               </div>
               <button
                 onClick={() => deleteWorkout(workout.id)}
-                className="text-red-400 hover:text-red-300 text-sm"
+                className="text-red-400 hover:text-red-300 text-sm font-medium transition-colors"
               >
                 Eliminar
               </button>

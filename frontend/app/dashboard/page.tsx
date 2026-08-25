@@ -2,16 +2,19 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { clearTokens, isAuthenticated } from '@/app/lib/auth';
 
 export default function DashboardPage() {
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!isAuthenticated()) {
       router.push('/login');
+    } else {
+      setLoading(false);
     }
   }, [router]);
 
@@ -19,6 +22,14 @@ export default function DashboardPage() {
     clearTokens();
     router.push('/login');
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center text-gray-400">
+        A verificar sessão...
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
@@ -30,7 +41,7 @@ export default function DashboardPage() {
           </div>
           <button
             onClick={handleLogout}
-            className="text-sm text-gray-400 hover:text-white"
+            className="text-sm text-gray-400 hover:text-white transition-colors"
           >
             Sair
           </button>
@@ -39,7 +50,7 @@ export default function DashboardPage() {
         <div className="grid gap-4 sm:grid-cols-3">
           <Link
             href="/workout"
-            className="bg-gray-800 hover:bg-gray-700 p-6 rounded-lg transition-colors"
+            className="bg-gray-800 hover:bg-gray-700 p-6 rounded-lg transition-colors border border-gray-700 hover:border-indigo-500"
           >
             <h2 className="text-xl font-semibold mb-2">Workout</h2>
             <p className="text-gray-400 text-sm">Regista os teus treinos</p>
@@ -47,7 +58,7 @@ export default function DashboardPage() {
 
           <Link
             href="/reading"
-            className="bg-gray-800 hover:bg-gray-700 p-6 rounded-lg transition-colors"
+            className="bg-gray-800 hover:bg-gray-700 p-6 rounded-lg transition-colors border border-gray-700 hover:border-indigo-500"
           >
             <h2 className="text-xl font-semibold mb-2">Reading</h2>
             <p className="text-gray-400 text-sm">Lista de livros</p>
@@ -55,7 +66,7 @@ export default function DashboardPage() {
 
           <Link
             href="/habits"
-            className="bg-gray-800 hover:bg-gray-700 p-6 rounded-lg transition-colors"
+            className="bg-gray-800 hover:bg-gray-700 p-6 rounded-lg transition-colors border border-gray-700 hover:border-indigo-500"
           >
             <h2 className="text-xl font-semibold mb-2">Habits</h2>
             <p className="text-gray-400 text-sm">Hábitos diários</p>
