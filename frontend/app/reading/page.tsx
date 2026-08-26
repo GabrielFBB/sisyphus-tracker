@@ -6,73 +6,68 @@ import Link from 'next/link';
 import { api } from '@/app/lib/api';
 import { getToken, clearTokens } from '@/app/lib/auth';
 
-interface Reading {
+type Status = 'want' | 'reading' | 'done';
+
+interface Book {
   id: number;
   title: string;
   author: string;
-  current_page: number;
-  total_pages: number;
-  status: 'unread' | 'reading' | 'completed';
+  status: Status;
+  owned: boolean;
+  notes: string;
 }
 
 export default function ReadingPage() {
   const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
-  const [readings, setReadings] = useState<Reading[]>([]);
-  const [activeTab, setActiveTab] = useState<'reading' | 'unread' | 'completed'>('reading');
+  const [books, setBooks] = useState<Book[]>([]);
+  const [activeTab, setActiveTab] = useState<Status>('reading');
   const [mode, setMode] = useState<'single' | 'bulk'>('single');
 
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
-  const [totalPages, setTotalPages] = useState<number>(100);
-  const [initialStatus, setInitialStatus] = useState<'unread' | 'reading' | 'completed'>('reading');
+  const [initialStatus, setInitialStatus] = useState<Status>('reading');
+  const [initialOwned, setInitialOwned] = useState(false);
 
   const [bulkText, setBulkText] = useState('');
-  const [bulkStatus, setBulkStatus] = useState<'unread' | 'completed'>('unread');
+  const [bulkStatus, setBulkStatus] = useState<Status>('want');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
+    if (!getToken()) {
       router.replace('/login');
-    } else {
-      setAuthorized(true);
-      fetchReadings();
+      return;
     }
+    setAuthorized(true);
+    fetchBooks();
   }, [router]);
 
-  const fetchReadings = async () => {
+  const fetchBooks = async () => {
     try {
-      const data = await api.get('/readings/');
-      if (Array.isArray(data)) setReadings(data as Reading[]);
+      const data = await api.get('/books/');
+      if (Array.isArray(data)) setBooks(data as Book[]);
     } catch {
-      setError('Erro ao carregar lista de leituras.');
+      setError('Erro ao carregar a lista de livros.');
     }
   };
 
-  const addSingleReading = async () => {
+  const addSingle = async () => {
     if (!title.trim() || !author.trim()) return;
     setLoading(true);
     setError('');
-
-    const total = Number(totalPages) || 100;
-    const current = initialStatus === 'completed' ? total : initialStatus === 'reading' ? 1 : 0;
-
     try {
-      await api.post('/readings/', {
-        title,
-        author,
-        current_page: current,
-        total_pages: total,
+      await api.post('/books/', {
+        title: title.trim(),
+        author: author.trim(),
         status: initialStatus,
+        owned: initialOwned,
       });
-
       setTitle('');
       setAuthor('');
-      setTotalPages(100);
-      await fetchReadings();
+      setInitialOwned(false);
+      await fetchBooks();
     } catch {
       setError('Erro ao adicionar livro.');
     } finally {
@@ -80,93 +75,67 @@ export default function ReadingPage() {
     }
   };
 
-  const addBulkReadings = async () => {
+  const addBulk = async () => {
     if (!bulkText.trim()) return;
     setLoading(true);
     setError('');
-
     const lines = bulkText.split('\n').filter((l) => l.trim() !== '');
-
     try {
       for (const line of lines) {
         const parts = line.split(/[-–—]/);
-        const bookTitle = parts[0]?.trim() || line.trim();
-        const bookAuthor = parts[1]?.trim() ? parts[1].trim() : 'Desconhecido';
-
-        await api.post('/readings/', {
+        const bookTitle = (parts[0] || line).trim();
+        const bookAuthor = parts[1]?.trim() || 'Desconhecido';
+        await api.post('/books/', {
           title: bookTitle,
           author: bookAuthor,
-          current_page: bulkStatus === 'completed' ? 200 : 0,
-          total_pages: 200,
           status: bulkStatus,
+          owned: bulkStatus === 'done',
         });
       }
-
       setBulkText('');
-      await fetchReadings();
+      await fetchBooks();
     } catch {
-      setError('Erro ao processar adição em lote.');
+      setError('Erro ao processar a lista.');
     } finally {
       setLoading(false);
     }
   };
 
-  const updateStatus = async (id: number, newStatus: 'unread' | 'reading' | 'completed', total: number) => {
-    const current = newStatus === 'completed' ? total : newStatus === 'reading' ? 1 : 0;
-    const target = readings.find(r => r.id === id);
-    if (!target) return;
-
+  const updateBook = async (book: Book, changes: Partial<Book>) => {
     try {
-      // @ts-ignore
-      await api.put(`/readings/${id}/`, {
-        title: target.title,
-        author: target.author,
-        total_pages: target.total_pages,
-        status: newStatus,
-        current_page: current,
+      await api.put(`/books/${book.id}/`, {
+        title: book.title,
+        author: book.author,
+        status: book.status,
+        owned: book.owned,
+        notes: book.notes || '',
+        ...changes,
       });
-      await fetchReadings();
+      await fetchBooks();
     } catch {
-      setError('Erro ao atualizar estado do livro.');
+      setError('Erro ao atualizar o livro.');
     }
   };
 
-  const updateProgress = async (id: number, newPage: number, total: number) => {
-    const clampedPage = Math.max(0, Math.min(newPage, total));
-    const newStatus = clampedPage >= total ? 'completed' : clampedPage > 0 ? 'reading' : 'unread';
-    const target = readings.find(r => r.id === id);
-    if (!target) return;
-
+  const deleteBook = async (id: number) => {
     try {
-      // @ts-ignore
-      await api.put(`/readings/${id}/`, {
-        title: target.title,
-        author: target.author,
-        total_pages: target.total_pages,
-        current_page: clampedPage,
-        status: newStatus,
-      });
-      await fetchReadings();
+      await api.delete(`/books/${id}/`);
+      await fetchBooks();
     } catch {
-      setError('Erro ao atualizar progresso.');
+      setError('Erro ao remover o livro.');
     }
   };
 
-  const deleteReading = async (id: number) => {
-    try {
-      // @ts-ignore
-      await api.delete(`/readings/${id}/`);
-      await fetchReadings();
-    } catch {
-      setError('Erro ao remover livro.');
-    }
-  };
+  if (!authorized) return <div className="min-h-screen bg-gray-950" />;
 
-  if (!authorized) {
-    return <div className="min-h-screen bg-gray-950" />;
-  }
+  const countOf = (s: Status) => books.filter((b) => b.status === s).length;
+  const filtered = books.filter((b) => b.status === activeTab);
 
-  const filteredReadings = readings.filter((r) => r.status === activeTab);
+  const tabs: { key: Status; label: string }[] = [
+    { key: 'reading', label: 'A Ler' },
+    { key: 'want', label: 'Por Ler' },
+    { key: 'done', label: 'Lidos' },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-950 text-white p-8">
@@ -176,13 +145,10 @@ export default function ReadingPage() {
             <Link href="/dashboard" className="text-gray-400 hover:text-white text-xs mb-2 block transition-colors">
               ← Voltar ao Dashboard
             </Link>
-            <h1 className="text-3xl font-extrabold tracking-tight">Biblioteca & Leituras</h1>
+            <h1 className="text-3xl font-extrabold tracking-tight">Biblioteca &amp; Leituras</h1>
           </div>
           <button
-            onClick={() => {
-              clearTokens();
-              router.push('/login');
-            }}
+            onClick={() => { clearTokens(); router.push('/login'); }}
             className="text-xs text-gray-400 hover:text-white bg-gray-900 border border-gray-800 px-3 py-1.5 rounded-md"
           >
             Sair
@@ -209,7 +175,7 @@ export default function ReadingPage() {
                 onClick={() => setMode('bulk')}
                 className={`px-3 py-1 rounded transition-colors ${mode === 'bulk' ? 'bg-emerald-600 text-white font-semibold' : 'text-gray-400 hover:text-white'}`}
               >
-                Em Lote (Lista)
+                Em Lote
               </button>
             </div>
           </div>
@@ -218,7 +184,7 @@ export default function ReadingPage() {
             <div className="space-y-4 pt-2">
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs text-gray-400 block mb-1">Título da Obra</label>
+                  <label className="text-xs text-gray-400 block mb-1">Título</label>
                   <input
                     type="text"
                     placeholder="Ex: O Mito de Sísifo"
@@ -239,34 +205,34 @@ export default function ReadingPage() {
                 </div>
               </div>
 
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid md:grid-cols-2 gap-4 items-end">
                 <div>
-                  <label className="text-xs text-gray-400 block mb-1">Nº Total de Páginas</label>
-                  <input
-                    type="number"
-                    value={totalPages}
-                    onChange={(e) => setTotalPages(Number(e.target.value))}
-                    className="w-full bg-gray-950 border border-gray-800 text-white p-3 rounded-lg text-sm outline-none focus:border-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-400 block mb-1">Estado Inicial</label>
+                  <label className="text-xs text-gray-400 block mb-1">Estado</label>
                   <select
                     value={initialStatus}
-                    onChange={(e) => setInitialStatus(e.target.value as 'unread' | 'reading' | 'completed')}
+                    onChange={(e) => setInitialStatus(e.target.value as Status)}
                     className="w-full bg-gray-950 border border-gray-800 text-white p-3 rounded-lg text-sm outline-none focus:border-emerald-500"
                   >
-                    <option value="unread">Por Ler (Wishlist)</option>
-                    <option value="reading">A Ler Atualmente</option>
-                    <option value="completed">Já Lido</option>
+                    <option value="want">Por Ler</option>
+                    <option value="reading">A Ler</option>
+                    <option value="done">Lido</option>
                   </select>
                 </div>
+                <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer p-3">
+                  <input
+                    type="checkbox"
+                    checked={initialOwned}
+                    onChange={(e) => setInitialOwned(e.target.checked)}
+                    className="w-4 h-4 accent-emerald-500"
+                  />
+                  Já tenho o livro
+                </label>
               </div>
 
               <button
-                onClick={addSingleReading}
+                onClick={addSingle}
                 disabled={loading || !title.trim() || !author.trim()}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-3 rounded-lg font-bold text-sm transition-colors shadow-lg shadow-emerald-600/20"
+                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-3 rounded-lg font-bold text-sm transition-colors"
               >
                 {loading ? 'A registar...' : 'Adicionar Livro'}
               </button>
@@ -275,145 +241,90 @@ export default function ReadingPage() {
             <div className="space-y-4 pt-2">
               <div>
                 <label className="text-xs text-gray-400 block mb-1">
-                  Cole a sua lista (um livro por linha, ex: <code className="text-emerald-400">Título - Autor</code>)
+                  Um livro por linha, no formato <code className="text-emerald-400">Título - Autor</code>
                 </label>
                 <textarea
                   rows={4}
-                  placeholder={'Crime e Castigo - Fiódor Dostoiévski\nA Metamorfose - Franz Kafka'}
+                  placeholder={'Crime e Castigo - Dostoiévski\nA Metamorfose - Kafka'}
                   value={bulkText}
                   onChange={(e) => setBulkText(e.target.value)}
                   className="w-full bg-gray-950 border border-gray-800 text-white p-3 rounded-lg text-sm outline-none focus:border-emerald-500"
                 />
               </div>
-
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Adicionar todos para:</label>
+                <label className="text-xs text-gray-400 block mb-1">Adicionar todos como:</label>
                 <select
                   value={bulkStatus}
-                  onChange={(e) => setBulkStatus(e.target.value as 'unread' | 'completed')}
+                  onChange={(e) => setBulkStatus(e.target.value as Status)}
                   className="w-full bg-gray-950 border border-gray-800 text-white p-3 rounded-lg text-sm outline-none focus:border-emerald-500"
                 >
-                  <option value="unread">Por Ler (Wishlist)</option>
-                  <option value="completed">Já Lidos</option>
+                  <option value="want">Por Ler</option>
+                  <option value="done">Já Lidos</option>
                 </select>
               </div>
-
               <button
-                onClick={addBulkReadings}
+                onClick={addBulk}
                 disabled={loading || !bulkText.trim()}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-3 rounded-lg font-bold text-sm transition-colors shadow-lg shadow-emerald-600/20"
+                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-3 rounded-lg font-bold text-sm transition-colors"
               >
-                {loading ? 'A processar lista...' : 'Adicionar Lista em Lote'}
+                {loading ? 'A processar...' : 'Adicionar Lista'}
               </button>
             </div>
           )}
         </div>
 
         <div className="flex border-b border-gray-800">
-          <button
-            onClick={() => setActiveTab('reading')}
-            className={`flex-1 pb-3 text-sm font-semibold border-b-2 transition-all ${activeTab === 'reading' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-gray-400 hover:text-gray-200'}`}
-          >
-            A Ler ({readings.filter((r) => r.status === 'reading').length})
-          </button>
-          <button
-            onClick={() => setActiveTab('unread')}
-            className={`flex-1 pb-3 text-sm font-semibold border-b-2 transition-all ${activeTab === 'unread' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-gray-400 hover:text-gray-200'}`}
-          >
-            Por Ler / Wishlist ({readings.filter((r) => r.status === 'unread').length})
-          </button>
-          <button
-            onClick={() => setActiveTab('completed')}
-            className={`flex-1 pb-3 text-sm font-semibold border-b-2 transition-all ${activeTab === 'completed' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-gray-400 hover:text-gray-200'}`}
-          >
-            Lidos ({readings.filter((r) => r.status === 'completed').length})
-          </button>
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex-1 pb-3 text-sm font-semibold border-b-2 transition-all ${activeTab === tab.key ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-gray-400 hover:text-gray-200'}`}
+            >
+              {tab.label} ({countOf(tab.key)})
+            </button>
+          ))}
         </div>
 
         <div className="space-y-4">
-          {filteredReadings.length === 0 && (
+          {filtered.length === 0 && (
             <p className="text-gray-500 text-center py-12 text-sm">Nenhum livro nesta categoria.</p>
           )}
-
-          {filteredReadings.map((reading) => {
-            const percent = reading.status === 'completed' ? 100 : Math.min(100, Math.round((reading.current_page / reading.total_pages) * 100)) || 0;
-
-            return (
-              <div key={reading.id} className="bg-gray-900 border border-gray-800 p-5 rounded-xl space-y-4 shadow-md">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-bold text-base text-white">{reading.title}</h3>
-                    <p className="text-xs text-gray-400">{reading.author}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <select
-                      value={reading.status}
-                      onChange={(e) => updateStatus(reading.id, e.target.value as 'unread' | 'reading' | 'completed', reading.total_pages)}
-                      className="bg-gray-950 border border-gray-800 text-xs text-gray-300 rounded px-2 py-1 outline-none"
-                    >
-                      <option value="unread">Por Ler</option>
-                      <option value="reading">A Ler</option>
-                      <option value="completed">Lido</option>
-                    </select>
-                    <button
-                      onClick={() => deleteReading(reading.id)}
-                      className="text-xs text-red-400 hover:text-red-300 transition-colors"
-                    >
-                      Remover
-                    </button>
-                  </div>
+          {filtered.map((book) => (
+            <div key={book.id} className="bg-gray-900 border border-gray-800 p-5 rounded-xl shadow-md">
+              <div className="flex justify-between items-start gap-4">
+                <div className="min-w-0">
+                  <h3 className="font-bold text-base text-white truncate">{book.title}</h3>
+                  <p className="text-xs text-gray-400">{book.author}</p>
+                  <label className="flex items-center gap-2 text-xs text-gray-300 mt-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={book.owned}
+                      onChange={(e) => updateBook(book, { owned: e.target.checked })}
+                      className="w-4 h-4 accent-emerald-500"
+                    />
+                    Já tenho
+                  </label>
                 </div>
-
-                {reading.status !== 'unread' && (
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs font-mono text-gray-400">
-                      <span>Progresso: {reading.current_page} / {reading.total_pages} pág.</span>
-                      <span className="text-emerald-400 font-bold">{percent}%</span>
-                    </div>
-                    <div className="w-full bg-gray-950 h-2 rounded-full overflow-hidden border border-gray-800">
-                      <div
-                        className="bg-emerald-500 h-full transition-all duration-300"
-                        style={{ width: `${percent}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {reading.status === 'reading' && (
-                  <div className="flex items-center justify-between pt-2 border-t border-gray-800/60 text-xs">
-                    <span className="text-gray-400">Atualizar páginas:</span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => updateProgress(reading.id, reading.current_page - 10, reading.total_pages)}
-                        className="bg-gray-800 hover:bg-gray-700 px-2.5 py-1 rounded text-gray-300 transition-colors"
-                      >
-                        -10
-                      </button>
-                      <button
-                        onClick={() => updateProgress(reading.id, reading.current_page - 1, reading.total_pages)}
-                        className="bg-gray-800 hover:bg-gray-700 px-2.5 py-1 rounded text-gray-300 transition-colors"
-                      >
-                        -1
-                      </button>
-                      <span className="font-mono font-bold px-2 text-white">{reading.current_page}</span>
-                      <button
-                        onClick={() => updateProgress(reading.id, reading.current_page + 1, reading.total_pages)}
-                        className="bg-gray-800 hover:bg-gray-700 px-2.5 py-1 rounded text-gray-300 transition-colors"
-                      >
-                        +1
-                      </button>
-                      <button
-                        onClick={() => updateProgress(reading.id, reading.current_page + 10, reading.total_pages)}
-                        className="bg-gray-800 hover:bg-gray-700 px-2.5 py-1 rounded text-gray-300 transition-colors"
-                      >
-                        +10
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <div className="flex items-center gap-3 shrink-0">
+                  <select
+                    value={book.status}
+                    onChange={(e) => updateBook(book, { status: e.target.value as Status })}
+                    className="bg-gray-950 border border-gray-800 text-xs text-gray-300 rounded px-2 py-1 outline-none"
+                  >
+                    <option value="want">Por Ler</option>
+                    <option value="reading">A Ler</option>
+                    <option value="done">Lido</option>
+                  </select>
+                  <button
+                    onClick={() => deleteBook(book.id)}
+                    className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                  >
+                    Remover
+                  </button>
+                </div>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       </div>
     </div>
