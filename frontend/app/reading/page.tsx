@@ -6,22 +6,21 @@ import Link from 'next/link';
 import { api } from '@/app/lib/api';
 import { getToken, clearTokens } from '@/app/lib/auth';
 
-interface Book {
+interface Reading {
   id: number;
   title: string;
   author: string;
-  total_pages: number;
   current_page: number;
-  status: 'reading' | 'completed' | 'want_to_read';
+  total_pages: number;
+  status: string;
 }
 
 export default function ReadingPage() {
   const router = useRouter();
-  const [books, setBooks] = useState<Book[]>([]);
+  const [readings, setReadings] = useState<Reading[]>([]);
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
-  const [totalPages, setTotalPages] = useState('');
-  const [currentPage, setCurrentPage] = useState('');
+  const [totalPages, setTotalPages] = useState<number>(100);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -31,36 +30,36 @@ export default function ReadingPage() {
       router.push('/login');
       return;
     }
-    fetchBooks();
-  }, []);
+    fetchReadings();
+  }, [router]);
 
-  const fetchBooks = async () => {
+  const fetchReadings = async () => {
     try {
-      const data = await api.get('/reading/');
-      if (Array.isArray(data)) setBooks(data);
+      const data = await api.get('/readings/');
+      if (Array.isArray(data)) setReadings(data as Reading[]);
     } catch {
-      setError('Erro ao carregar a lista de livros.');
+      setError('Erro ao carregar lista de leituras.');
     }
   };
 
-  const addBook = async () => {
+  const addReading = async () => {
     if (!title.trim() || !author.trim()) return;
     setLoading(true);
     setError('');
 
     try {
-      await api.post('/reading/', {
+      await api.post('/readings/', {
         title,
         author,
-        total_pages: Number(totalPages) || 0,
-        current_page: Number(currentPage) || 0,
+        current_page: 0,
+        total_pages: Number(totalPages) || 100,
         status: 'reading',
       });
+
       setTitle('');
       setAuthor('');
-      setTotalPages('');
-      setCurrentPage('');
-      await fetchBooks();
+      setTotalPages(100);
+      await fetchReadings();
     } catch {
       setError('Erro ao adicionar livro.');
     } finally {
@@ -68,166 +67,171 @@ export default function ReadingPage() {
     }
   };
 
-  const updateProgress = async (book: Book, newPage: number) => {
-    const validPage = Math.max(0, Math.min(newPage, book.total_pages || newPage));
-    const isCompleted = book.total_pages > 0 && validPage >= book.total_pages;
-
+  const updateProgress = async (id: number, newPage: number, total: number) => {
+    const clampedPage = Math.max(0, Math.min(newPage, total));
     try {
-      setBooks((prev) =>
-        prev.map((b) =>
-          b.id === book.id
-            ? {
-                ...b,
-                current_page: validPage,
-                status: isCompleted ? 'completed' : b.status,
-              }
-            : b
-        )
-      );
-
-      await api.put(`/reading/${book.id}/`, {
-        title: book.title,
-        author: book.author,
-        total_pages: book.total_pages,
-        current_page: validPage,
-        status: isCompleted ? 'completed' : book.status,
+      await api.patch(`/readings/${id}/`, {
+        current_page: clampedPage,
+        status: clampedPage >= total ? 'completed' : 'reading',
       });
+      await fetchReadings();
     } catch {
-      setError('Erro ao atualizar progresso.');
-      await fetchBooks();
+      setError('Erro ao atualizar progresso da leitura.');
     }
   };
 
-  const deleteBook = async (id: number) => {
+  const deleteReading = async (id: number) => {
     try {
-      await api.delete(`/reading/${id}/`);
-      await fetchBooks();
+      await api.delete(`/readings/${id}/`);
+      await fetchReadings();
     } catch {
-      setError('Erro ao eliminar livro.');
+      setError('Erro ao remover livro.');
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
+    <div className="min-h-screen bg-gray-950 text-white p-8">
+      <div className="max-w-3xl mx-auto space-y-8">
+        {/* Cabeçalho */}
+        <div className="flex items-center justify-between">
           <div>
-            <Link href="/dashboard" className="text-gray-400 hover:text-white text-sm mb-2 block">
-              ← Dashboard
+            <Link href="/dashboard" className="text-gray-400 hover:text-white text-xs mb-2 block transition-colors">
+              ← Voltar ao Dashboard
             </Link>
-            <h1 className="text-3xl font-bold">Leituras</h1>
+            <h1 className="text-3xl font-extrabold tracking-tight">Leituras & Obras</h1>
           </div>
           <button
             onClick={() => {
               clearTokens();
               router.push('/login');
             }}
-            className="text-sm text-gray-400 hover:text-white"
+            className="text-xs text-gray-400 hover:text-white bg-gray-900 border border-gray-800 px-3 py-1.5 rounded-md"
           >
             Sair
           </button>
         </div>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500 text-red-500 p-3 rounded mb-4 text-sm">
+          <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm">
             {error}
           </div>
         )}
 
-        <div className="bg-gray-800 p-6 rounded-lg mb-6">
-          <h2 className="text-lg font-semibold mb-4">Novo Livro</h2>
-          <input
-            type="text"
-            placeholder="Título do livro"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full bg-gray-700 text-white p-3 rounded mb-3 outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-          <input
-            type="text"
-            placeholder="Autor"
-            value={author}
-            onChange={(e) => setAuthor(e.target.value)}
-            className="w-full bg-gray-700 text-white p-3 rounded mb-3 outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-          <div className="grid grid-cols-2 gap-3 mb-4">
+        {/* Formulário de Registo */}
+        <div className="bg-gray-900 border border-gray-800 p-6 rounded-xl space-y-4 shadow-lg">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-emerald-400">Adicionar Novo Livro</h2>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Título da Obra</label>
+              <input
+                type="text"
+                placeholder="Ex: A Odisseia"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full bg-gray-950 border border-gray-800 text-white p-3 rounded-lg text-sm outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Autor</label>
+              <input
+                type="text"
+                placeholder="Ex: Homero"
+                value={author}
+                onChange={(e) => setAuthor(e.target.value)}
+                className="w-full bg-gray-950 border border-gray-800 text-white p-3 rounded-lg text-sm outline-none focus:border-emerald-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Número Total de Páginas</label>
             <input
               type="number"
-              placeholder="Total de páginas"
               value={totalPages}
-              onChange={(e) => setTotalPages(e.target.value)}
-              className="bg-gray-700 text-white p-3 rounded outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <input
-              type="number"
-              placeholder="Página atual"
-              value={currentPage}
-              onChange={(e) => setCurrentPage(e.target.value)}
-              className="bg-gray-700 text-white p-3 rounded outline-none focus:ring-2 focus:ring-indigo-500"
+              onChange={(e) => setTotalPages(Number(e.target.value))}
+              className="w-full bg-gray-950 border border-gray-800 text-white p-3 rounded-lg text-sm outline-none focus:border-emerald-500"
             />
           </div>
+
           <button
-            onClick={addBook}
+            onClick={addReading}
             disabled={loading || !title.trim() || !author.trim()}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-6 py-2 rounded font-bold transition-colors"
+            className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-3 rounded-lg font-bold text-sm transition-colors shadow-lg shadow-emerald-600/20"
           >
-            {loading ? 'A adicionar...' : 'Adicionar'}
+            {loading ? 'A registar...' : 'Adicionar à Lista de Leituras'}
           </button>
         </div>
 
+        {/* Lista de Livros */}
         <div className="space-y-4">
-          {books.length === 0 && (
-            <p className="text-gray-400 text-center py-4">Nenhum livro registado ainda.</p>
+          <h2 className="text-lg font-bold tracking-tight">Obras em Acompanhamento</h2>
+          {readings.length === 0 && (
+            <p className="text-gray-500 text-center py-8 text-sm">Nenhum livro registado de momento.</p>
           )}
-          {books.map((book) => {
-            const percentage =
-              book.total_pages > 0
-                ? Math.min(100, Math.round((book.current_page / book.total_pages) * 100))
-                : 0;
+
+          {readings.map((reading) => {
+            const percent = Math.min(100, Math.round((reading.current_page / reading.total_pages) * 100)) || 0;
 
             return (
-              <div key={book.id} className="bg-gray-800 p-5 rounded-lg space-y-3">
-                <div className="flex items-start justify-between">
+              <div key={reading.id} className="bg-gray-900 border border-gray-800 p-5 rounded-xl space-y-4 shadow-md">
+                <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="font-semibold text-lg">{book.title}</h3>
-                    <p className="text-gray-400 text-sm">{book.author}</p>
+                    <h3 className="font-bold text-base text-white">{reading.title}</h3>
+                    <p className="text-xs text-gray-400">{reading.author}</p>
                   </div>
                   <button
-                    onClick={() => deleteBook(book.id)}
-                    className="text-red-400 hover:text-red-300 text-sm font-medium transition-colors"
+                    onClick={() => deleteReading(reading.id)}
+                    className="text-xs text-red-400 hover:text-red-300 transition-colors"
                   >
-                    Eliminar
+                    Remover
                   </button>
                 </div>
 
-                {book.total_pages > 0 && (
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs text-gray-400">
-                      <span>Progresso</span>
-                      <span>{percentage}% ({book.current_page} / {book.total_pages} págs)</span>
-                    </div>
-                    <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
-                      <div
-                        className="bg-indigo-500 h-full transition-all duration-300"
-                        style={{ width: `${percentage}%` }}
-                      />
-                    </div>
+                {/* Barra de Progresso */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs font-mono text-gray-400">
+                    <span>Progresso: {reading.current_page} / {reading.total_pages} pág.</span>
+                    <span className="text-emerald-400 font-bold">{percent}%</span>
                   </div>
-                )}
+                  <div className="w-full bg-gray-950 h-2 rounded-full overflow-hidden border border-gray-800">
+                    <div
+                      className="bg-emerald-500 h-full transition-all duration-300"
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+                </div>
 
-                <div className="flex items-center gap-2 pt-1">
-                  <span className="text-xs text-gray-400">Atualizar página:</span>
-                  <input
-                    type="number"
-                    defaultValue={book.current_page}
-                    onBlur={(e) => updateProgress(book, Number(e.target.value))}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        updateProgress(book, Number((e.target as HTMLInputElement).value));
-                      }
-                    }}
-                    className="w-20 bg-gray-700 text-white text-sm p-1 px-2 rounded outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
+                {/* Controlo Rápido de Páginas */}
+                <div className="flex items-center justify-between pt-2 border-t border-gray-800/60 text-xs">
+                  <span className="text-gray-400">Atualizar página atual:</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => updateProgress(reading.id, reading.current_page - 10, reading.total_pages)}
+                      className="bg-gray-800 hover:bg-gray-700 px-2.5 py-1 rounded text-gray-300 transition-colors"
+                    >
+                      -10
+                    </button>
+                    <button
+                      onClick={() => updateProgress(reading.id, reading.current_page - 1, reading.total_pages)}
+                      className="bg-gray-800 hover:bg-gray-700 px-2.5 py-1 rounded text-gray-300 transition-colors"
+                    >
+                      -1
+                    </button>
+                    <span className="font-mono font-bold px-2 text-white">{reading.current_page}</span>
+                    <button
+                      onClick={() => updateProgress(reading.id, reading.current_page + 1, reading.total_pages)}
+                      className="bg-gray-800 hover:bg-gray-700 px-2.5 py-1 rounded text-gray-300 transition-colors"
+                    >
+                      +1
+                    </button>
+                    <button
+                      onClick={() => updateProgress(reading.id, reading.current_page + 10, reading.total_pages)}
+                      className="bg-gray-800 hover:bg-gray-700 px-2.5 py-1 rounded text-gray-300 transition-colors"
+                    >
+                      +10
+                    </button>
+                  </div>
                 </div>
               </div>
             );
