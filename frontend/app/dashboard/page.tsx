@@ -5,10 +5,13 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/app/lib/api';
 import { getToken, clearTokens } from '@/app/lib/auth';
+import { getQuoteOfTheDay } from '@/app/lib/quotes';
 
 export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
+  const [quote, setQuote] = useState({ text: '', author: '' });
   const [stats, setStats] = useState({
     habitsCount: 0,
     readingsCount: 0,
@@ -18,23 +21,24 @@ export default function DashboardPage() {
   useEffect(() => {
     const token = getToken();
     if (!token) {
-      router.push('/login');
+      router.replace('/login');
       return;
     }
+    setAuthorized(true);
+    setQuote(getQuoteOfTheDay());
     fetchDashboardData();
   }, [router]);
 
   const fetchDashboardData = async () => {
     try {
-      const [habits, readings, workouts] = await Promise.all([
+      const [habits, books, workouts] = await Promise.all([
         api.get('/habits/').catch(() => []),
-        api.get('/readings/').catch(() => []),
+        api.get('/books/').catch(() => []),
         api.get('/workouts/').catch(() => []),
       ]);
-
       setStats({
         habitsCount: Array.isArray(habits) ? habits.length : 0,
-        readingsCount: Array.isArray(readings) ? readings.length : 0,
+        readingsCount: Array.isArray(books) ? books.length : 0,
         workoutsCount: Array.isArray(workouts) ? workouts.length : 0,
       });
     } catch {
@@ -48,6 +52,10 @@ export default function DashboardPage() {
     clearTokens();
     router.push('/login');
   };
+
+  if (!authorized) {
+    return <div className="min-h-screen bg-gray-950" />;
+  }
 
   if (loading) {
     return (
@@ -81,8 +89,9 @@ export default function DashboardPage() {
             <h1 className="text-3xl font-extrabold tracking-tight">Painel de Controlo</h1>
             <p className="text-gray-400 text-sm mt-1">Registe os seus passos diários rumo à consistência.</p>
           </div>
-          <div className="text-xs text-indigo-300 bg-indigo-950/60 border border-indigo-800/50 px-3 py-2 rounded-lg">
-            "É preciso imaginar Sísifo feliz." — Albert Camus
+          <div className="text-xs text-indigo-300 bg-indigo-950/60 border border-indigo-800/50 px-4 py-3 rounded-lg max-w-sm">
+            <p className="italic leading-relaxed">&ldquo;{quote.text}&rdquo;</p>
+            <p className="text-indigo-400/70 mt-1.5 not-italic">— {quote.author}</p>
           </div>
         </div>
 
@@ -113,9 +122,9 @@ export default function DashboardPage() {
                 </span>
                 <span className="text-2xl font-bold font-mono text-gray-200">{stats.readingsCount}</span>
               </div>
-              <h2 className="text-lg font-bold text-white group-hover:text-emerald-300 transition-colors">Leituras & Livros</h2>
+              <h2 className="text-lg font-bold text-white group-hover:text-emerald-300 transition-colors">Leituras &amp; Livros</h2>
               <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                Acompanhamento de páginas, obras literárias e progresso de leitura.
+                Biblioteca pessoal, estado de cada obra e o que já tem na estante.
               </p>
             </div>
             <div className="mt-6 flex items-center text-xs font-semibold text-emerald-400 group-hover:translate-x-1 transition-transform">
@@ -131,7 +140,7 @@ export default function DashboardPage() {
                 </span>
                 <span className="text-2xl font-bold font-mono text-gray-200">{stats.workoutsCount}</span>
               </div>
-              <h2 className="text-lg font-bold text-white group-hover:text-purple-300 transition-colors">Treinos & Cargas</h2>
+              <h2 className="text-lg font-bold text-white group-hover:text-purple-300 transition-colors">Treinos &amp; Cargas</h2>
               <p className="text-xs text-gray-400 mt-1 leading-relaxed">
                 Registo de sessões físicas, séries, repetições e progressão de carga.
               </p>
