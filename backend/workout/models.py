@@ -2,9 +2,27 @@ from django.db import models
 from django.contrib.auth.models import User
 
 class Workout(models.Model):
+    MODALITY_CHOICES = [
+        ('strength', 'Musculação'),
+        ('martial', 'Artes marciais'),
+        ('cardio', 'Cardio'),
+        ('other', 'Outro'),
+    ]
+
+    METHOD_CHOICES = [
+        ('', 'Sem método'),
+        ('ppl', 'Push Pull Legs'),
+        ('upper_lower', 'Upper Lower'),
+        ('full_body', 'Full Body'),
+        ('abc', 'ABC'),
+        ('other', 'Outro'),
+    ]
+
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
     date = models.DateField()
+    modality = models.CharField(max_length=20, choices=MODALITY_CHOICES, default='strength')
+    method = models.CharField(max_length=20, choices=METHOD_CHOICES, blank=True, default='')
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
