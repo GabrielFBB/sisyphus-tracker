@@ -14,6 +14,7 @@ interface Book {
   author: string;
   status: Status;
   owned: boolean;
+  rating: number | null;
   notes: string;
 }
 
@@ -70,6 +71,8 @@ export default function ReadingPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editAuthor, setEditAuthor] = useState('');
+  const [editRating, setEditRating] = useState('');
+  const [editNotes, setEditNotes] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -168,6 +171,7 @@ export default function ReadingPage() {
         author: book.author,
         status: book.status,
         owned: book.owned,
+        rating: book.rating,
         notes: book.notes || '',
         ...changes,
       });
@@ -181,11 +185,24 @@ export default function ReadingPage() {
     setEditingId(book.id);
     setEditTitle(book.title);
     setEditAuthor(book.author);
+    setEditRating(book.rating !== null ? String(book.rating) : '');
+    setEditNotes(book.notes || '');
   };
 
   const saveEdit = async (book: Book) => {
     if (!editTitle.trim()) return;
-    await updateBook(book, { title: editTitle.trim(), author: editAuthor.trim() || 'Desconhecido' });
+    const parsedRating = editRating.trim() === '' ? null : parseFloat(editRating.replace(',', '.'));
+    if (parsedRating !== null && (isNaN(parsedRating) || parsedRating < 0 || parsedRating > 10)) {
+      setError('A nota tem de ser um número entre 0 e 10.');
+      return;
+    }
+    setError('');
+    await updateBook(book, {
+      title: editTitle.trim(),
+      author: editAuthor.trim() || 'Desconhecido',
+      rating: parsedRating,
+      notes: editNotes.trim(),
+    });
     setEditingId(null);
   };
 
@@ -208,6 +225,15 @@ export default function ReadingPage() {
     { key: 'want', label: 'Por Ler' },
     { key: 'done', label: 'Lidos' },
   ];
+
+  const ratingColor = (r: number) => {
+    if (r >= 9) return 'text-emerald-400 border-emerald-500/40 bg-emerald-500/10';
+    if (r >= 7) return 'text-sky-400 border-sky-500/40 bg-sky-500/10';
+    if (r >= 5) return 'text-amber-400 border-amber-500/40 bg-amber-500/10';
+    return 'text-red-400 border-red-500/40 bg-red-500/10';
+  };
+
+  const fmt = (r: number) => String(r).replace('.', ',');
 
   return (
     <div className="min-h-screen bg-gray-950 text-white p-8">
@@ -399,6 +425,27 @@ export default function ReadingPage() {
                     placeholder="Autor"
                     className="w-full bg-gray-950 border border-gray-800 text-white p-2 rounded text-sm outline-none focus:border-emerald-500"
                   />
+                  <div>
+                    <label className="text-xs text-gray-400 block mb-1">Nota (0 a 10, aceita decimais)</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={editRating}
+                      onChange={(e) => setEditRating(e.target.value)}
+                      placeholder="Ex: 8,5"
+                      className="w-full bg-gray-950 border border-gray-800 text-white p-2 rounded text-sm outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 block mb-1">Notas</label>
+                    <textarea
+                      rows={4}
+                      value={editNotes}
+                      onChange={(e) => setEditNotes(e.target.value)}
+                      placeholder="O que achaste do livro?"
+                      className="w-full bg-gray-950 border border-gray-800 text-white p-2 rounded text-sm outline-none focus:border-emerald-500"
+                    />
+                  </div>
                   <div className="flex gap-2">
                     <button
                       onClick={() => saveEdit(book)}
@@ -407,7 +454,7 @@ export default function ReadingPage() {
                       Guardar
                     </button>
                     <button
-                      onClick={() => setEditingId(null)}
+                      onClick={() => { setEditingId(null); setError(''); }}
                       className="text-xs text-gray-400 hover:text-white px-4 py-2"
                     >
                       Cancelar
@@ -415,45 +462,60 @@ export default function ReadingPage() {
                   </div>
                 </div>
               ) : (
-                <div className="flex justify-between items-start gap-4">
-                  <div className="min-w-0">
-                    <h3 className="font-bold text-base text-white">{book.title}</h3>
-                    <p className={`text-xs ${book.author === 'Desconhecido' ? 'text-amber-500/70' : 'text-gray-400'}`}>
-                      {book.author}
+                <div className="space-y-3">
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-bold text-base text-white">{book.title}</h3>
+                        {book.rating !== null && (
+                          <span className={`text-xs font-bold font-mono px-2 py-0.5 rounded border ${ratingColor(book.rating)}`}>
+                            {fmt(book.rating)}
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-xs ${book.author === 'Desconhecido' ? 'text-amber-500/70' : 'text-gray-400'}`}>
+                        {book.author}
+                      </p>
+                      <label className="flex items-center gap-2 text-xs text-gray-300 mt-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={book.owned}
+                          onChange={(e) => updateBook(book, { owned: e.target.checked })}
+                          className="w-4 h-4 accent-emerald-500"
+                        />
+                        Já tenho
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <select
+                        value={book.status}
+                        onChange={(e) => updateBook(book, { status: e.target.value as Status })}
+                        className="bg-gray-950 border border-gray-800 text-xs text-gray-300 rounded px-2 py-1 outline-none"
+                      >
+                        <option value="want">Por Ler</option>
+                        <option value="reading">A Ler</option>
+                        <option value="done">Lido</option>
+                      </select>
+                      <button
+                        onClick={() => startEdit(book)}
+                        className="text-xs text-gray-400 hover:text-white transition-colors"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => deleteBook(book.id)}
+                        className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  </div>
+
+                  {book.notes && (
+                    <p className="text-xs text-gray-400 leading-relaxed border-l-2 border-gray-800 pl-3 whitespace-pre-wrap">
+                      {book.notes}
                     </p>
-                    <label className="flex items-center gap-2 text-xs text-gray-300 mt-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={book.owned}
-                        onChange={(e) => updateBook(book, { owned: e.target.checked })}
-                        className="w-4 h-4 accent-emerald-500"
-                      />
-                      Já tenho
-                    </label>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <select
-                      value={book.status}
-                      onChange={(e) => updateBook(book, { status: e.target.value as Status })}
-                      className="bg-gray-950 border border-gray-800 text-xs text-gray-300 rounded px-2 py-1 outline-none"
-                    >
-                      <option value="want">Por Ler</option>
-                      <option value="reading">A Ler</option>
-                      <option value="done">Lido</option>
-                    </select>
-                    <button
-                      onClick={() => startEdit(book)}
-                      className="text-xs text-gray-400 hover:text-white transition-colors"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => deleteBook(book.id)}
-                      className="text-xs text-red-400 hover:text-red-300 transition-colors"
-                    >
-                      Remover
-                    </button>
-                  </div>
+                  )}
                 </div>
               )}
             </div>
