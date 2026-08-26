@@ -6,149 +6,299 @@ import Link from 'next/link';
 import { api } from '@/app/lib/api';
 import { getToken, clearTokens } from '@/app/lib/auth';
 import { getQuoteOfTheDay } from '@/app/lib/quotes';
+import { getFigureOfTheDay } from '@/app/lib/figures';
+
+interface HabitLog {
+  date: string;
+  value: number;
+  completed: boolean;
+}
+
+interface Habit {
+  id: number;
+  name: string;
+  logs: HabitLog[];
+}
+
+interface Book {
+  id: number;
+  title: string;
+  author: string;
+  status: string;
+}
+
+interface Workout {
+  id: number;
+  name: string;
+  date: string;
+}
+
+const today = () => new Date().toISOString().split('T')[0];
+
+const shiftDate = (iso: string, days: number) => {
+  const d = new Date(iso + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+};
+
+function calcStreak(logs: HabitLog[]): number {
+  const done = new Set(logs.filter((l) => l.completed).map((l) => l.date));
+  let streak = 0;
+  let cursor = today();
+  if (!done.has(cursor)) {
+    cursor = shiftDate(cursor, -1);
+    if (!done.has(cursor)) return 0;
+  }
+  while (done.has(cursor)) {
+    streak++;
+    cursor = shiftDate(cursor, -1);
+  }
+  return streak;
+}
+
+function daysAgo(iso: string): string {
+  const diff = Math.floor(
+    (new Date(today() + 'T12:00:00').getTime() - new Date(iso + 'T12:00:00').getTime()) / 86400000
+  );
+  if (diff === 0) return 'hoje';
+  if (diff === 1) return 'ontem';
+  return `há ${diff} dias`;
+}
 
 export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState(false);
   const [quote, setQuote] = useState({ text: '', author: '' });
-  const [stats, setStats] = useState({
-    habitsCount: 0,
-    readingsCount: 0,
-    workoutsCount: 0,
-  });
+  const [figure, setFigure] = useState({ name: '', initials: '', years: '', story: '' });
+  const [habits, setHabits] = useState<Habit[]>([]);
+  const [books, setBooks] = useState<Book[]>([]);
+  const [workouts, setWorkouts] = useState<Workout[]>([]);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
+    if (!getToken()) {
       router.replace('/login');
       return;
     }
     setAuthorized(true);
     setQuote(getQuoteOfTheDay());
-    fetchDashboardData();
+    setFigure(getFigureOfTheDay());
+    fetchData();
   }, [router]);
 
-  const fetchDashboardData = async () => {
+  const fetchData = async () => {
     try {
-      const [habits, books, workouts] = await Promise.all([
+      const [h, b, w] = await Promise.all([
         api.get('/habits/').catch(() => []),
         api.get('/books/').catch(() => []),
         api.get('/workouts/').catch(() => []),
       ]);
-      setStats({
-        habitsCount: Array.isArray(habits) ? habits.length : 0,
-        readingsCount: Array.isArray(books) ? books.length : 0,
-        workoutsCount: Array.isArray(workouts) ? workouts.length : 0,
-      });
+      if (Array.isArray(h)) setHabits(h as Habit[]);
+      if (Array.isArray(b)) setBooks(b as Book[]);
+      if (Array.isArray(w)) setWorkouts(w as Workout[]);
     } catch {
-      // Falha silenciosa
+      // silencioso
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogout = () => {
-    clearTokens();
-    router.push('/login');
-  };
-
-  if (!authorized) {
-    return <div className="min-h-screen bg-gray-950" />;
-  }
+  if (!authorized) return <div className="min-h-screen bg-[#0b0d10]" />;
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
-        <div className="animate-pulse text-indigo-400 font-medium">A carregar o seu santuário...</div>
+      <div className="min-h-screen bg-[#0b0d10] flex items-center justify-center">
+        <p className="text-sm text-[#5f5f5b] animate-pulse">A carregar</p>
       </div>
     );
   }
 
+  const isDone = (h: Habit) => h.logs?.some((l) => l.date === today() && l.completed) ?? false;
+  const doneToday = habits.filter(isDone);
+  const pendingToday = habits.filter((h) => !isDone(h));
+  const bestStreak = habits.reduce((max, h) => Math.max(max, calcStreak(h.logs || [])), 0);
+  const habitProgress = habits.length > 0 ? Math.round((doneToday.length / habits.length) * 100) : 0;
+
+  const reading = books.filter((b) => b.status === 'reading');
+  const wantToRead = books.filter((b) => b.status === 'want').length;
+  const readCount = books.filter((b) => b.status === 'done').length;
+
+  const sortedWorkouts = [...workouts].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const workoutsThisMonth = workouts.filter((w) => w.date?.startsWith(today().slice(0, 7))).length;
+
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-xl font-bold tracking-wider bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-              SisyphusTracker
-            </span>
-          </div>
+    <div className="min-h-screen bg-[#0b0d10] text-[#e8e8e6]">
+      <header className="border-b border-[#1c1f26]">
+        <div className="max-w-6xl mx-auto px-8 h-16 flex items-center justify-between">
+          <span className="text-xl font-medium tracking-tight text-white">SisyphusTracker</span>
           <button
-            onClick={handleLogout}
-            className="text-xs text-gray-400 hover:text-white transition-colors bg-gray-800 px-3 py-1.5 rounded-md border border-gray-700"
+            onClick={() => { clearTokens(); router.push('/login'); }}
+            className="text-xs text-[#7d7d78] hover:text-[#e8e8e6] transition-colors"
           >
-            Terminar Sessão
+            Sair
           </button>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-10 space-y-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-extrabold tracking-tight">Painel de Controlo</h1>
-            <p className="text-gray-400 text-sm mt-1">Registe os seus passos diários rumo à consistência.</p>
-          </div>
-          <div className="text-xs text-indigo-300 bg-indigo-950/60 border border-indigo-800/50 px-4 py-3 rounded-lg max-w-sm">
-            <p className="italic leading-relaxed">&ldquo;{quote.text}&rdquo;</p>
-            <p className="text-indigo-400/70 mt-1.5 not-italic">— {quote.author}</p>
-          </div>
+      <main className="max-w-6xl mx-auto px-8 py-10">
+        <div className="mb-6">
+          <h1 className="text-2xl font-medium tracking-tight text-white">Painel</h1>
+          <p className="text-sm text-[#7d7d78] mt-1.5">
+            {habits.length === 0
+              ? 'Começa por criar um hábito.'
+              : `${doneToday.length} de ${habits.length} hábitos concluídos hoje.`}
+          </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
-          <Link href="/habits" className="group bg-gray-900 border border-gray-800 hover:border-indigo-500/50 p-6 rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/10 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <span className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-lg group-hover:scale-110 transition-transform">
-                  ⚡
+        <div className="grid lg:grid-cols-[1.7fr_1fr] gap-4">
+          <div className="grid gap-3 content-start">
+            <Link
+              href="/habits"
+              className="group border border-[#26303f] bg-[#141821] hover:border-[#3a4657] p-6 transition-colors"
+              style={{ borderLeft: '3px solid #639922', borderRadius: '0 12px 12px 0' }}
+            >
+              <div className="flex items-baseline justify-between">
+                <h2 className="text-sm font-medium text-white">Hábitos</h2>
+                <span className="font-mono text-3xl leading-none font-medium text-[#97C459] tabular-nums">
+                  {habitProgress}%
                 </span>
-                <span className="text-2xl font-bold font-mono text-gray-200">{stats.habitsCount}</span>
               </div>
-              <h2 className="text-lg font-bold text-white group-hover:text-indigo-300 transition-colors">Hábitos Diários</h2>
-              <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                Controlo de rotinas e micro-ações diárias para criar consistência mecânica.
-              </p>
-            </div>
-            <div className="mt-6 flex items-center text-xs font-semibold text-indigo-400 group-hover:translate-x-1 transition-transform">
-              Gerir hábitos →
-            </div>
-          </Link>
 
-          <Link href="/reading" className="group bg-gray-900 border border-gray-800 hover:border-emerald-500/50 p-6 rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/10 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <span className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-lg group-hover:scale-110 transition-transform">
-                  📚
-                </span>
-                <span className="text-2xl font-bold font-mono text-gray-200">{stats.readingsCount}</span>
+              <div className="h-2 bg-[#0b0d10] rounded-full overflow-hidden mt-4">
+                <div
+                  className="h-full bg-[#639922] rounded-full transition-all duration-500"
+                  style={{ width: `${habitProgress}%` }}
+                />
               </div>
-              <h2 className="text-lg font-bold text-white group-hover:text-emerald-300 transition-colors">Leituras &amp; Livros</h2>
-              <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                Biblioteca pessoal, estado de cada obra e o que já tem na estante.
-              </p>
-            </div>
-            <div className="mt-6 flex items-center text-xs font-semibold text-emerald-400 group-hover:translate-x-1 transition-transform">
-              Ver leituras →
-            </div>
-          </Link>
 
-          <Link href="/workout" className="group bg-gray-900 border border-gray-800 hover:border-purple-500/50 p-6 rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <span className="p-2.5 bg-purple-500/10 text-purple-400 rounded-lg group-hover:scale-110 transition-transform">
-                  🏋️
-                </span>
-                <span className="text-2xl font-bold font-mono text-gray-200">{stats.workoutsCount}</span>
+              <div className="mt-5 space-y-2.5">
+                {habits.length === 0 && <p className="text-xs text-[#5f5f5b]">Nenhum hábito criado.</p>}
+                {pendingToday.map((h) => (
+                  <div key={h.id} className="flex items-center gap-3">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#3a4657] shrink-0" />
+                    <span className="text-base text-[#d8d8d4] truncate">{h.name}</span>
+                  </div>
+                ))}
+                {doneToday.map((h) => (
+                  <div key={h.id} className="flex items-center gap-3">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#639922] shrink-0" />
+                    <span className="text-base text-[#7f7f7b] line-through truncate">{h.name}</span>
+                  </div>
+                ))}
               </div>
-              <h2 className="text-lg font-bold text-white group-hover:text-purple-300 transition-colors">Treinos &amp; Cargas</h2>
-              <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                Registo de sessões físicas, séries, repetições e progressão de carga.
-              </p>
+            </Link>
+
+            <Link
+              href="/reading"
+              className="group border border-[#26303f] bg-[#141821] hover:border-[#3a4657] p-6 transition-colors"
+              style={{ borderLeft: '3px solid #7F77DD', borderRadius: '0 12px 12px 0' }}
+            >
+              <div className="flex items-baseline justify-between">
+                <h2 className="text-sm font-medium text-white">Leituras</h2>
+                <div className="flex items-baseline gap-5">
+                  <div className="text-right">
+                    <span className="font-mono text-3xl leading-none font-medium text-[#AFA9EC] tabular-nums">
+                      {readCount}
+                    </span>
+                    <p className="text-[11px] text-[#5f5f5b] mt-1.5">lidos</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-mono text-xl leading-none font-medium text-[#7d7d78] tabular-nums">
+                      {wantToRead}
+                    </span>
+                    <p className="text-[11px] text-[#5f5f5b] mt-1.5">por ler</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {reading.length === 0 && <p className="text-xs text-[#5f5f5b]">Nenhum livro em curso.</p>}
+                {reading.slice(0, 3).map((b) => (
+                  <div key={b.id} className="flex items-center gap-3">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#7F77DD] shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-base text-[#d8d8d4] truncate">{b.title}</p>
+                      <p className="text-sm text-[#9b9b96] truncate">{b.author}</p>
+                    </div>
+                  </div>
+                ))}
+                {reading.length > 3 && (
+                  <p className="text-xs text-[#5f5f5b] pl-4.5">e mais {reading.length - 3} a ler</p>
+                )}
+              </div>
+            </Link>
+
+            <Link
+              href="/workout"
+              className="group border border-[#26303f] bg-[#141821] hover:border-[#3a4657] p-6 transition-colors"
+              style={{ borderLeft: '3px solid #EF9F27', borderRadius: '0 12px 12px 0' }}
+            >
+              <div className="flex items-baseline justify-between">
+                <h2 className="text-sm font-medium text-white">Treinos</h2>
+                <div className="flex items-baseline gap-5">
+                  <div className="text-right">
+                    <span className="font-mono text-3xl leading-none font-medium text-[#EF9F27] tabular-nums">
+                      {workoutsThisMonth}
+                    </span>
+                    <p className="text-[11px] text-[#5f5f5b] mt-1.5">este mês</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-mono text-xl leading-none font-medium text-[#7d7d78] tabular-nums">
+                      {workouts.length}
+                    </span>
+                    <p className="text-[11px] text-[#5f5f5b] mt-1.5">no total</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 space-y-2.5">
+                {sortedWorkouts.length === 0 && (
+                  <p className="text-xs text-[#5f5f5b]">Nenhum treino registado.</p>
+                )}
+                {sortedWorkouts.slice(0, 3).map((w) => (
+                  <div key={w.id} className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#EF9F27] shrink-0" />
+                      <span className="text-base text-[#d8d8d4] truncate">{w.name}</span>
+                    </div>
+                    <span className="text-sm text-[#9b9b96] shrink-0">{daysAgo(w.date)}</span>
+                  </div>
+                ))}
+              </div>
+            </Link>
+          </div>
+
+          <div className="grid gap-3 content-start">
+            {bestStreak > 0 && (
+              <div className="border border-[#26303f] bg-[#141821] rounded-xl p-6 text-center">
+                <p className="font-mono text-5xl leading-none font-medium text-[#EF9F27] tabular-nums">
+                  {bestStreak}
+                </p>
+                <p className="text-xs text-[#7d7d78] mt-3">
+                  {bestStreak === 1 ? 'dia de sequência' : 'dias de sequência'}
+                </p>
+              </div>
+            )}
+
+            <div className="border-l-[3px] border-[#639922] bg-[#141821] px-6 py-5">
+              <p className="text-[#c8c8c4] leading-relaxed italic text-sm">&ldquo;{quote.text}&rdquo;</p>
+              <p className="text-[11px] text-[#8b8b86] mt-3 not-italic">{quote.author}</p>
             </div>
-            <div className="mt-6 flex items-center text-xs font-semibold text-purple-400 group-hover:translate-x-1 transition-transform">
-              Registar treino →
+
+            <div className="border border-[#26303f] bg-[#141821] rounded-xl p-6">
+              <p className="text-[10px] text-[#5f5f5b] tracking-[0.1em] mb-4">FIGURA DO DIA</p>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-[#639922]/15 border border-[#639922]/40 flex items-center justify-center text-xs font-medium text-[#97C459] shrink-0">
+                  {figure.initials}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-white truncate">{figure.name}</p>
+                  <p className="text-[11px] text-[#5f5f5b]">{figure.years}</p>
+                </div>
+              </div>
+              <p className="text-base text-[#d8d8d4] leading-relaxed">{figure.story}</p>
             </div>
-          </Link>
+          </div>
         </div>
       </main>
     </div>

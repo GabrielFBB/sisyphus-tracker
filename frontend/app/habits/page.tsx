@@ -38,12 +38,10 @@ function calcStreak(logs: HabitLog[]): number {
   const done = new Set(logs.filter((l) => l.completed).map((l) => l.date));
   let streak = 0;
   let cursor = today();
-
   if (!done.has(cursor)) {
     cursor = shiftDate(cursor, -1);
     if (!done.has(cursor)) return 0;
   }
-
   while (done.has(cursor)) {
     streak++;
     cursor = shiftDate(cursor, -1);
@@ -81,6 +79,7 @@ export default function HabitsPage() {
   const [authorized, setAuthorized] = useState(false);
   const [habits, setHabits] = useState<Habit[]>([]);
 
+  const [formOpen, setFormOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [habitType, setHabitType] = useState<HabitType>('binary');
@@ -146,6 +145,7 @@ export default function HabitsPage() {
       setTarget('1');
       setUnit('');
       setHabitType('binary');
+      setFormOpen(false);
       await fetchHabits();
     } catch {
       setError('Erro ao criar o hábito.');
@@ -180,27 +180,13 @@ export default function HabitsPage() {
           });
         }
       } else if (value > 0) {
-        await api.post('/habitlogs/', {
-          habit: habit.id,
-          date: today(),
-          value,
-        });
+        await api.post('/habitlogs/', { habit: habit.id, date: today(), value });
       }
       setInputs((prev) => ({ ...prev, [habit.id]: '' }));
       await fetchHabits();
     } catch {
       setError('Erro ao registar o progresso.');
     }
-  };
-
-  const startTimer = (habitId: number) => {
-    saveTimers({ ...timers, [habitId]: Date.now() });
-  };
-
-  const cancelTimer = (habitId: number) => {
-    const next = { ...timers };
-    delete next[habitId];
-    saveTimers(next);
   };
 
   const stopTimer = async (habit: Habit, currentValue: number) => {
@@ -215,127 +201,139 @@ export default function HabitsPage() {
     }
   };
 
-  if (!authorized) return <div className="min-h-screen bg-gray-950" />;
-
-  const typeLabel = (t: HabitType) => {
-    if (t === 'quantity') return 'Quantidade';
-    if (t === 'duration') return 'Duração';
-    return 'Sim/Não';
-  };
+  if (!authorized) return <div className="min-h-screen bg-[#0b0d10]" />;
 
   const fmt = (n: number) => String(Math.round(n * 100) / 100).replace('.', ',');
 
+  const doneTodayCount = habits.filter((h) =>
+    h.logs?.some((l) => l.date === today() && l.completed)
+  ).length;
+
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-8">
-      <div className="max-w-3xl mx-auto space-y-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <Link href="/dashboard" className="text-gray-400 hover:text-white text-xs mb-2 block transition-colors">
-              ← Voltar ao Dashboard
-            </Link>
-            <h1 className="text-3xl font-extrabold tracking-tight">Hábitos Diários</h1>
-          </div>
+    <div className="min-h-screen bg-[#0b0d10] text-[#e8e8e6]">
+      <header className="border-b border-[#1c1f26] sticky top-0 bg-[#0b0d10]/90 backdrop-blur z-10">
+        <div className="max-w-3xl mx-auto px-6 h-14 flex items-center justify-between">
+          <Link href="/dashboard" className="text-xs text-[#7d7d78] hover:text-[#e8e8e6] transition-colors">
+            ← Dashboard
+          </Link>
           <button
             onClick={() => { clearTokens(); router.push('/login'); }}
-            className="text-xs text-gray-400 hover:text-white bg-gray-900 border border-gray-800 px-3 py-1.5 rounded-md"
+            className="text-xs text-[#7d7d78] hover:text-[#e8e8e6] transition-colors"
           >
             Sair
           </button>
         </div>
+      </header>
+
+      <main className="max-w-3xl mx-auto px-6 py-10 space-y-8">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-medium tracking-tight">Hábitos</h1>
+            <p className="text-sm text-[#7d7d78] mt-1">
+              {habits.length === 0
+                ? 'Sem hábitos ainda'
+                : `${doneTodayCount} de ${habits.length} concluídos hoje`}
+            </p>
+          </div>
+          <button
+            onClick={() => setFormOpen(!formOpen)}
+            className="text-xs text-[#7d7d78] hover:text-[#e8e8e6] border border-[#232830] hover:border-[#3a4150] px-4 py-2 rounded-md transition-colors shrink-0"
+          >
+            {formOpen ? 'Cancelar' : 'Novo hábito'}
+          </button>
+        </div>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm">
+          <div className="border border-[#7a2c2c] bg-[#7a2c2c]/10 text-[#f09595] p-3 rounded-lg text-sm">
             {error}
           </div>
         )}
 
-        <div className="bg-gray-900 border border-gray-800 p-6 rounded-xl space-y-4 shadow-lg">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-indigo-400 border-b border-gray-800 pb-3">
-            Novo Hábito
-          </h2>
-
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">Nome</label>
-              <input
-                type="text"
-                placeholder="Ex: Beber água"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full bg-gray-950 border border-gray-800 text-white p-3 rounded-lg text-sm outline-none focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">Tipo</label>
-              <select
-                value={habitType}
-                onChange={(e) => {
-                  const t = e.target.value as HabitType;
-                  setHabitType(t);
-                  if (t === 'binary') { setTarget('1'); setUnit(''); }
-                  if (t === 'duration') { setTarget('60'); setUnit('min'); }
-                  if (t === 'quantity') { setTarget(''); setUnit(''); }
-                }}
-                className="w-full bg-gray-950 border border-gray-800 text-white p-3 rounded-lg text-sm outline-none focus:border-indigo-500"
-              >
-                <option value="binary">Sim/Não — fiz ou não fiz</option>
-                <option value="quantity">Quantidade — litros, páginas...</option>
-                <option value="duration">Duração — minutos, com timer</option>
-              </select>
-            </div>
-          </div>
-
-          {habitType !== 'binary' && (
+        {formOpen && (
+          <div className="border border-[#26303f] bg-[#141821] rounded-xl p-5 space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Meta diária</label>
+                <label className="text-xs text-[#7d7d78] block mb-1.5">Nome</label>
                 <input
                   type="text"
-                  inputMode="decimal"
-                  placeholder={habitType === 'duration' ? 'Ex: 60' : 'Ex: 5'}
-                  value={target}
-                  onChange={(e) => setTarget(e.target.value)}
-                  className="w-full bg-gray-950 border border-gray-800 text-white p-3 rounded-lg text-sm outline-none focus:border-indigo-500"
+                  placeholder="Beber água"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full bg-[#0b0d10] border border-[#26303f] text-[#e8e8e6] px-3 py-2.5 rounded-md text-sm outline-none focus:border-[#639922] transition-colors"
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Unidade</label>
-                <input
-                  type="text"
-                  placeholder={habitType === 'duration' ? 'min' : 'Ex: L, páginas'}
-                  value={unit}
-                  onChange={(e) => setUnit(e.target.value)}
-                  className="w-full bg-gray-950 border border-gray-800 text-white p-3 rounded-lg text-sm outline-none focus:border-indigo-500"
-                />
+                <label className="text-xs text-[#7d7d78] block mb-1.5">Tipo</label>
+                <select
+                  value={habitType}
+                  onChange={(e) => {
+                    const t = e.target.value as HabitType;
+                    setHabitType(t);
+                    if (t === 'binary') { setTarget('1'); setUnit(''); }
+                    if (t === 'duration') { setTarget('60'); setUnit('min'); }
+                    if (t === 'quantity') { setTarget(''); setUnit(''); }
+                  }}
+                  className="w-full bg-[#0b0d10] border border-[#26303f] text-[#e8e8e6] px-3 py-2.5 rounded-md text-sm outline-none focus:border-[#639922] transition-colors"
+                >
+                  <option value="binary">Sim ou não</option>
+                  <option value="quantity">Quantidade</option>
+                  <option value="duration">Duração</option>
+                </select>
               </div>
             </div>
-          )}
 
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">Descrição (opcional)</label>
-            <input
-              type="text"
-              placeholder="Porque é que este hábito importa?"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full bg-gray-950 border border-gray-800 text-white p-3 rounded-lg text-sm outline-none focus:border-indigo-500"
-            />
+            {habitType !== 'binary' && (
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-[#7d7d78] block mb-1.5">Meta diária</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder={habitType === 'duration' ? '60' : '5'}
+                    value={target}
+                    onChange={(e) => setTarget(e.target.value)}
+                    className="w-full bg-[#0b0d10] border border-[#26303f] text-[#e8e8e6] px-3 py-2.5 rounded-md text-sm outline-none focus:border-[#639922] transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-[#7d7d78] block mb-1.5">Unidade</label>
+                  <input
+                    type="text"
+                    placeholder={habitType === 'duration' ? 'min' : 'L'}
+                    value={unit}
+                    onChange={(e) => setUnit(e.target.value)}
+                    className="w-full bg-[#0b0d10] border border-[#26303f] text-[#e8e8e6] px-3 py-2.5 rounded-md text-sm outline-none focus:border-[#639922] transition-colors"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="text-xs text-[#7d7d78] block mb-1.5">Descrição</label>
+              <input
+                type="text"
+                placeholder="Opcional"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full bg-[#0b0d10] border border-[#26303f] text-[#e8e8e6] px-3 py-2.5 rounded-md text-sm outline-none focus:border-[#639922] transition-colors"
+              />
+            </div>
+
+            <button
+              onClick={addHabit}
+              disabled={loading || !name.trim()}
+              className="w-full bg-[#639922] hover:bg-[#97C459] disabled:opacity-40 text-[#173404] py-2.5 rounded-md font-medium text-sm transition-colors"
+            >
+              {loading ? 'A criar' : 'Criar hábito'}
+            </button>
           </div>
+        )}
 
-          <button
-            onClick={addHabit}
-            disabled={loading || !name.trim()}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white py-3 rounded-lg font-bold text-sm transition-colors"
-          >
-            {loading ? 'A criar...' : 'Criar Hábito'}
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          {habits.length === 0 && (
-            <p className="text-gray-500 text-center py-12 text-sm">
-              Ainda não tens hábitos. Cria o primeiro e começa a empurrar a pedra.
-            </p>
+        <div className="space-y-3">
+          {habits.length === 0 && !formOpen && (
+            <div className="border border-dashed border-[#1c1f26] rounded-xl py-16 text-center">
+              <p className="text-sm text-[#7d7d78]">Cria o primeiro hábito e começa a empurrar a pedra.</p>
+            </div>
           )}
 
           {habits.map((habit) => {
@@ -352,28 +350,33 @@ export default function HabitsPage() {
             const startedAt = timers[habit.id];
             const elapsed = startedAt ? Math.floor((now - startedAt) / 1000) : 0;
 
+            const accent = doneToday ? '#639922' : value > 0 ? '#EF9F27' : '#2a3441';
+            const numberColor = doneToday ? 'text-[#639922]' : value > 0 ? 'text-[#EF9F27]' : 'text-[#7d7d78]';
+            const barColor = doneToday ? 'bg-[#639922]' : 'bg-[#EF9F27]';
+
             return (
-              <div key={habit.id} className="bg-gray-900 border border-gray-800 p-5 rounded-xl space-y-4 shadow-md">
+              <div
+                key={habit.id}
+                className="border border-[#26303f] bg-[#141821] rounded-r-xl p-5 space-y-5 transition-colors"
+                style={{ borderLeft: `3px solid ${accent}`, borderRadius: '0 12px 12px 0' }}
+              >
                 <div className="flex justify-between items-start gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-bold text-base text-white">{habit.name}</h3>
+                      <h2 className="text-base font-medium text-white">{habit.name}</h2>
                       {streak > 0 && (
-                        <span className="text-xs font-bold font-mono px-2 py-0.5 rounded border border-orange-500/40 bg-orange-500/10 text-orange-400">
+                        <span className="font-mono text-[11px] font-medium text-[#412402] bg-[#EF9F27] px-2 py-0.5 rounded-full">
                           {streak} {streak === 1 ? 'dia' : 'dias'}
                         </span>
                       )}
-                      <span className="text-[10px] uppercase tracking-wider text-gray-500 border border-gray-800 px-1.5 py-0.5 rounded">
-                        {typeLabel(isBinary ? 'binary' : habit.habit_type)}
-                      </span>
                     </div>
                     {habit.description && (
-                      <p className="text-xs text-gray-400 mt-1">{habit.description}</p>
+                      <p className="text-xs text-[#8b8b86] mt-1.5">{habit.description}</p>
                     )}
                   </div>
                   <button
                     onClick={() => deleteHabit(habit.id)}
-                    className="text-xs text-red-400 hover:text-red-300 transition-colors shrink-0"
+                    className="text-xs text-[#5f5f5b] hover:text-[#f09595] transition-colors shrink-0"
                   >
                     Remover
                   </button>
@@ -382,48 +385,53 @@ export default function HabitsPage() {
                 {isBinary ? (
                   <button
                     onClick={() => logToday(habit, doneToday ? 0 : 1)}
-                    className={`w-full py-3 rounded-lg text-sm font-bold transition-colors border ${
+                    className={`w-full py-3 rounded-md text-sm font-medium transition-colors ${
                       doneToday
-                        ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400'
-                        : 'bg-gray-950 border-gray-800 text-gray-400 hover:border-indigo-500 hover:text-white'
+                        ? 'bg-[#639922] text-[#173404] hover:bg-[#97C459]'
+                        : 'border border-[#2a3441] text-[#8b8b86] hover:border-[#639922]/50 hover:text-white'
                     }`}
                   >
-                    {doneToday ? '✓ Feito hoje' : 'Marcar como feito hoje'}
+                    {doneToday ? 'Concluído hoje' : 'Marcar como feito'}
                   </button>
                 ) : (
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs font-mono text-gray-400">
-                      <span>
-                        Hoje: {fmt(value)} / {fmt(target)} {habit.unit}
-                      </span>
-                      <span className={doneToday ? 'text-emerald-400 font-bold' : 'text-gray-500'}>
+                  <div className="space-y-4">
+                    <div className="flex items-baseline gap-3">
+                      <span className={`font-mono text-[44px] leading-none font-medium tabular-nums ${numberColor}`}>
                         {percent}%
                       </span>
+                      <span className="text-sm text-[#b8b8b3]">
+                        {fmt(value)} de {fmt(target)} {habit.unit}
+                      </span>
                     </div>
-                    <div className="w-full bg-gray-950 h-2 rounded-full overflow-hidden border border-gray-800">
+
+                    <div className="h-3 bg-[#0b0d10] rounded-full overflow-hidden">
                       <div
-                        className={`h-full transition-all duration-300 ${doneToday ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                        className={`h-full rounded-full transition-all duration-500 ${barColor}`}
                         style={{ width: `${percent}%` }}
                       />
                     </div>
 
                     {isDuration && (
                       startedAt ? (
-                        <div className="flex items-center gap-3 bg-gray-950 border border-indigo-500/40 rounded-lg p-3">
-                          <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse shrink-0" />
-                          <span className="font-mono text-lg font-bold text-indigo-300 tabular-nums">
+                        <div className="flex items-center gap-3 border border-[#639922]/40 bg-[#639922]/5 rounded-lg px-4 py-3">
+                          <span className="w-2 h-2 rounded-full bg-[#639922] shrink-0 animate-pulse" />
+                          <span className="font-mono text-2xl font-medium text-[#97C459] tabular-nums">
                             {formatElapsed(elapsed)}
                           </span>
                           <div className="flex gap-2 ml-auto">
                             <button
                               onClick={() => stopTimer(habit, value)}
-                              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-4 py-2 rounded font-semibold"
+                              className="text-xs text-[#173404] bg-[#639922] hover:bg-[#97C459] px-4 py-2 rounded-full font-medium transition-colors"
                             >
-                              Parar e registar
+                              Parar
                             </button>
                             <button
-                              onClick={() => cancelTimer(habit.id)}
-                              className="text-xs text-gray-500 hover:text-white px-2"
+                              onClick={() => {
+                                const next = { ...timers };
+                                delete next[habit.id];
+                                saveTimers(next);
+                              }}
+                              className="text-xs text-[#5f5f5b] hover:text-white px-2 transition-colors"
                             >
                               Cancelar
                             </button>
@@ -431,19 +439,19 @@ export default function HabitsPage() {
                         </div>
                       ) : (
                         <button
-                          onClick={() => startTimer(habit.id)}
-                          className="w-full bg-gray-950 border border-gray-800 hover:border-indigo-500 text-gray-400 hover:text-white py-2.5 rounded-lg text-sm font-semibold transition-colors"
+                          onClick={() => saveTimers({ ...timers, [habit.id]: Date.now() })}
+                          className="w-full border border-[#2a3441] hover:border-[#639922]/50 text-[#8b8b86] hover:text-[#97C459] py-2.5 rounded-md text-sm font-medium transition-colors"
                         >
-                          ▶ Iniciar timer
+                          Iniciar timer
                         </button>
                       )
                     )}
 
-                    <div className="flex items-center gap-2 pt-1">
+                    <div className="flex items-center gap-2">
                       <input
                         type="text"
                         inputMode="decimal"
-                        placeholder={`Somar ${habit.unit || 'valor'} manualmente`}
+                        placeholder={`Somar ${habit.unit || 'valor'}`}
                         value={inputs[habit.id] ?? ''}
                         onChange={(e) => setInputs((p) => ({ ...p, [habit.id]: e.target.value }))}
                         onKeyDown={(e) => {
@@ -451,21 +459,21 @@ export default function HabitsPage() {
                           const add = parseFloat((inputs[habit.id] ?? '').replace(',', '.'));
                           if (!isNaN(add)) logToday(habit, value + add);
                         }}
-                        className="flex-1 bg-gray-950 border border-gray-800 text-white p-2 rounded text-sm outline-none focus:border-indigo-500"
+                        className="flex-1 bg-[#0b0d10] border border-[#26303f] text-[#e8e8e6] px-3 py-2 rounded-md text-sm outline-none focus:border-[#639922] transition-colors"
                       />
                       <button
                         onClick={() => {
                           const add = parseFloat((inputs[habit.id] ?? '').replace(',', '.'));
                           if (!isNaN(add)) logToday(habit, value + add);
                         }}
-                        className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-4 py-2 rounded font-semibold"
+                        className="text-xs text-[#173404] bg-[#639922] hover:bg-[#97C459] px-4 py-2 rounded-md font-medium transition-colors"
                       >
                         Somar
                       </button>
                       {value > 0 && (
                         <button
                           onClick={() => logToday(habit, 0)}
-                          className="text-xs text-gray-500 hover:text-white px-2"
+                          className="text-xs text-[#5f5f5b] hover:text-white px-2 transition-colors"
                         >
                           Limpar
                         </button>
@@ -474,25 +482,25 @@ export default function HabitsPage() {
                   </div>
                 )}
 
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-gray-600 mb-1.5">Últimos 30 dias</p>
-                  <div className="flex gap-1 flex-wrap">
+                <div className="pt-1">
+                  <div className="flex gap-[3px] flex-wrap">
                     {lastDays(30).map((d) => (
                       <div
                         key={d}
                         title={d}
-                        className={`w-3 h-3 rounded-sm ${
-                          doneDates.has(d) ? 'bg-emerald-500' : 'bg-gray-800'
+                        className={`w-[11px] h-[11px] rounded-sm ${
+                          doneDates.has(d) ? 'bg-[#639922]' : 'bg-[#0b0d10]'
                         }`}
                       />
                     ))}
                   </div>
+                  <p className="text-[10px] text-[#5f5f5b] tracking-wider mt-2">ÚLTIMOS 30 DIAS</p>
                 </div>
               </div>
             );
           })}
         </div>
-      </div>
+      </main>
     </div>
   );
 }
