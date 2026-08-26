@@ -17,17 +17,16 @@ interface Reading {
 
 export default function ReadingPage() {
   const router = useRouter();
+  const [authorized, setAuthorized] = useState(false);
   const [readings, setReadings] = useState<Reading[]>([]);
   const [activeTab, setActiveTab] = useState<'reading' | 'unread' | 'completed'>('reading');
   const [mode, setMode] = useState<'single' | 'bulk'>('single');
 
-  // Campos para livro individual
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
   const [totalPages, setTotalPages] = useState<number>(100);
   const [initialStatus, setInitialStatus] = useState<'unread' | 'reading' | 'completed'>('reading');
 
-  // Campos para adição em lote (Bulk)
   const [bulkText, setBulkText] = useState('');
   const [bulkStatus, setBulkStatus] = useState<'unread' | 'completed'>('unread');
 
@@ -37,10 +36,11 @@ export default function ReadingPage() {
   useEffect(() => {
     const token = getToken();
     if (!token) {
-      router.push('/login');
-      return;
+      router.replace('/login');
+    } else {
+      setAuthorized(true);
+      fetchReadings();
     }
-    fetchReadings();
   }, [router]);
 
   const fetchReadings = async () => {
@@ -85,7 +85,6 @@ export default function ReadingPage() {
     setLoading(true);
     setError('');
 
-    // Cada linha pode ser "Título - Autor" ou apenas "Título"
     const lines = bulkText.split('\n').filter((l) => l.trim() !== '');
 
     try {
@@ -148,13 +147,15 @@ export default function ReadingPage() {
     }
   };
 
-  // Filtrar livros pela aba ativa
+  if (!authorized) {
+    return <div className="min-h-screen bg-gray-950" />;
+  }
+
   const filteredReadings = readings.filter((r) => r.status === activeTab);
 
   return (
     <div className="min-h-screen bg-gray-950 text-white p-8">
       <div className="max-w-3xl mx-auto space-y-8">
-        {/* Cabeçalho */}
         <div className="flex items-center justify-between">
           <div>
             <Link href="/dashboard" className="text-gray-400 hover:text-white text-xs mb-2 block transition-colors">
@@ -179,7 +180,6 @@ export default function ReadingPage() {
           </div>
         )}
 
-        {/* Painel de Adição (Individual ou em Lote) */}
         <div className="bg-gray-900 border border-gray-800 p-6 rounded-xl space-y-4 shadow-lg">
           <div className="flex items-center justify-between border-b border-gray-800 pb-3">
             <h2 className="text-sm font-bold uppercase tracking-wider text-emerald-400">Adicionar Livros</h2>
@@ -294,7 +294,6 @@ export default function ReadingPage() {
           )}
         </div>
 
-        {/* Abas de Navegação por Estado */}
         <div className="flex border-b border-gray-800">
           <button
             onClick={() => setActiveTab('reading')}
@@ -316,7 +315,6 @@ export default function ReadingPage() {
           </button>
         </div>
 
-        {/* Lista de Livros Filtrados */}
         <div className="space-y-4">
           {filteredReadings.length === 0 && (
             <p className="text-gray-500 text-center py-12 text-sm">Nenhum livro nesta categoria.</p>
@@ -351,7 +349,6 @@ export default function ReadingPage() {
                   </div>
                 </div>
 
-                {/* Mostrar barra de progresso apenas se estiver a ler ou concluído */}
                 {reading.status !== 'unread' && (
                   <div className="space-y-1.5">
                     <div className="flex justify-between text-xs font-mono text-gray-400">
@@ -367,7 +364,6 @@ export default function ReadingPage() {
                   </div>
                 )}
 
-                {/* Controlo Rápido de Páginas (apenas no estado 'reading') */}
                 {reading.status === 'reading' && (
                   <div className="flex items-center justify-between pt-2 border-t border-gray-800/60 text-xs">
                     <span className="text-gray-400">Atualizar páginas:</span>

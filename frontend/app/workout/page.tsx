@@ -6,131 +6,133 @@ import Link from 'next/link';
 import { api } from '@/app/lib/api';
 import { getToken, clearTokens } from '@/app/lib/auth';
 
-interface Exercise {
+interface ExerciseItem {
   name: string;
   sets: number;
   reps: number;
-  weight_kg: number;
+  weight: number;
+  notes?: string;
 }
 
 interface Workout {
   id: number;
   name: string;
   date: string;
-  notes?: string;
-  exercises?: Exercise[];
+  exercises: ExerciseItem[];
 }
 
 export default function WorkoutPage() {
   const router = useRouter();
+  const [authorized, setAuthorized] = useState(false);
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [name, setName] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [notes, setNotes] = useState('');
-
-  const [exercises, setExercises] = useState<Exercise[]>([
-    { name: '', sets: 3, reps: 10, weight_kg: 0 },
+  const [exercises, setExercises] = useState<ExerciseItem[]>([
+    { name: '', sets: 3, reps: 10, weight: 0, notes: '' },
   ]);
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     const token = getToken();
     if (!token) {
-      router.push('/login');
-      return;
+      router.replace('/login');
+    } else {
+      setAuthorized(true);
+      fetchWorkouts();
     }
-    fetchWorkouts();
-  }, []);
+  }, [router]);
 
   const fetchWorkouts = async () => {
     try {
       const data = await api.get('/workouts/');
       if (Array.isArray(data)) setWorkouts(data as Workout[]);
     } catch {
-      setError('Erro ao carregar a lista de treinos.');
+      setError('Erro ao carregar treinos.');
     }
   };
 
   const addExerciseField = () => {
-    setExercises((prev) => [...prev, { name: '', sets: 3, reps: 10, weight_kg: 0 }]);
+    setExercises([...exercises, { name: '', sets: 3, reps: 10, weight: 0, notes: '' }]);
+  };
+
+  const updateExercise = (index: number, field: keyof ExerciseItem, value: string | number) => {
+    const updated = [...exercises];
+    updated[index] = { ...updated[index], [field]: value };
+    setExercises(updated);
   };
 
   const removeExerciseField = (index: number) => {
-    setExercises((prev) => prev.filter((_, i) => i !== index));
+    setExercises(exercises.filter((_, i) => i !== index));
   };
 
-  const updateExercise = (index: number, field: keyof Exercise, value: string | number) => {
-    setExercises((prev) =>
-      prev.map((ex, i) => (i === index ? { ...ex, [field]: value } : ex))
-    );
-  };
-
-  const addWorkout = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!name.trim()) return;
+
     setLoading(true);
     setError('');
-
-    const validExercises = exercises.filter((ex) => ex.name.trim() !== '');
 
     try {
       await api.post('/workouts/', {
         name,
         date,
-        notes,
-        exercises: validExercises,
+        exercises,
       });
 
       setName('');
-      setNotes('');
-      setExercises([{ name: '', sets: 3, reps: 10, weight_kg: 0 }]);
+      setExercises([{ name: '', sets: 3, reps: 10, weight: 0, notes: '' }]);
       await fetchWorkouts();
     } catch {
-      setError('Erro ao registar treino.');
+      setError('Erro ao guardar o treino.');
     } finally {
       setLoading(false);
     }
   };
 
-  const deleteWorkout = async (id: number) => {
+  const handleDelete = async (id: number) => {
     try {
       await api.delete(`/workouts/${id}/`);
       await fetchWorkouts();
     } catch {
-      setError('Erro ao eliminar treino.');
+      setError('Erro ao apagar treino.');
     }
   };
 
+  if (!authorized) {
+    return <div className="min-h-screen bg-gray-950" />;
+  }
+
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
-      <div className="max-w-3xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
+    <div className="min-h-screen bg-gray-950 text-white p-8">
+      <div className="max-w-3xl mx-auto space-y-8">
+        <div className="flex items-center justify-between">
           <div>
-            <Link href="/dashboard" className="text-gray-400 hover:text-white text-sm mb-2 block">
-              ← Dashboard
+            <Link href="/dashboard" className="text-gray-400 hover:text-white text-xs mb-2 block transition-colors">
+              ← Voltar ao Dashboard
             </Link>
-            <h1 className="text-3xl font-bold">Treinos</h1>
+            <h1 className="text-3xl font-extrabold tracking-tight">Treinos & Cargas</h1>
           </div>
           <button
             onClick={() => {
               clearTokens();
               router.push('/login');
             }}
-            className="text-sm text-gray-400 hover:text-white"
+            className="text-xs text-gray-400 hover:text-white bg-gray-900 border border-gray-800 px-3 py-1.5 rounded-md"
           >
             Sair
           </button>
         </div>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500 text-red-500 p-3 rounded mb-4 text-sm">
+          <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm">
             {error}
           </div>
         )}
 
-        <div className="bg-gray-800 p-6 rounded-lg mb-8 space-y-4">
-          <h2 className="text-lg font-semibold mb-2">Registar Novo Treino</h2>
+        {/* Formulário de Novo Treino */}
+        <form onSubmit={handleSubmit} className="bg-gray-900 border border-gray-800 p-6 rounded-xl space-y-6 shadow-lg">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-purple-400">Registar Novo Treino</h2>
 
           <div className="grid md:grid-cols-2 gap-4">
             <div>
@@ -140,7 +142,8 @@ export default function WorkoutPage() {
                 placeholder="Ex: Full Body, Peito & Tríceps..."
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full bg-gray-700 text-white p-3 rounded outline-none focus:ring-2 focus:ring-indigo-500"
+                required
+                className="w-full bg-gray-950 border border-gray-800 text-white p-3 rounded-lg text-sm outline-none focus:border-purple-500"
               />
             </div>
             <div>
@@ -149,135 +152,127 @@ export default function WorkoutPage() {
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full bg-gray-700 text-white p-3 rounded outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full bg-gray-950 border border-gray-800 text-white p-3 rounded-lg text-sm outline-none focus:border-purple-500"
               />
             </div>
           </div>
 
-          <div className="pt-2">
-            <div className="flex justify-between items-center mb-2">
-              <label className="text-sm font-semibold text-gray-300">Exercícios & Cargas</label>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Exercícios & Cargas</span>
               <button
                 type="button"
                 onClick={addExerciseField}
-                className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold"
+                className="text-xs text-purple-400 hover:text-purple-300 font-semibold"
               >
                 + Adicionar Exercício
               </button>
             </div>
 
-            <div className="space-y-3">
-              {exercises.map((ex, idx) => (
-                <div key={idx} className="flex flex-wrap items-center gap-2 bg-gray-750 p-3 rounded border border-gray-700">
+            {exercises.map((ex, index) => (
+              <div key={index} className="bg-gray-950 border border-gray-800/80 p-4 rounded-lg space-y-3">
+                <div className="flex items-center justify-between gap-2">
                   <input
                     type="text"
                     placeholder="Exercício (ex: Supino Reto)"
                     value={ex.name}
-                    onChange={(e) => updateExercise(idx, 'name', e.target.value)}
-                    className="flex-1 min-w-[150px] bg-gray-700 text-white p-2 rounded text-sm outline-none"
+                    onChange={(e) => updateExercise(index, 'name', e.target.value)}
+                    required
+                    className="w-full bg-gray-900 border border-gray-800 text-white p-2.5 rounded text-sm outline-none focus:border-purple-500"
                   />
-                  <div className="flex items-center gap-1 text-xs text-gray-400">
-                    <span>Séries:</span>
-                    <input
-                      type="number"
-                      value={ex.sets}
-                      onChange={(e) => updateExercise(idx, 'sets', Number(e.target.value))}
-                      className="w-14 bg-gray-700 text-white p-2 rounded text-sm text-center outline-none"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-gray-400">
-                    <span>Reps:</span>
-                    <input
-                      type="number"
-                      value={ex.reps}
-                      onChange={(e) => updateExercise(idx, 'reps', Number(e.target.value))}
-                      className="w-14 bg-gray-700 text-white p-2 rounded text-sm text-center outline-none"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-gray-400">
-                    <span>Carga (kg):</span>
-                    <input
-                      type="number"
-                      value={ex.weight_kg}
-                      onChange={(e) => updateExercise(idx, 'weight_kg', Number(e.target.value))}
-                      className="w-16 bg-gray-700 text-white p-2 rounded text-sm text-center outline-none"
-                    />
-                  </div>
                   {exercises.length > 1 && (
                     <button
                       type="button"
-                      onClick={() => removeExerciseField(idx)}
-                      className="text-red-400 hover:text-red-300 text-xs px-2"
+                      onClick={() => removeExerciseField(index)}
+                      className="text-xs text-red-400 hover:text-red-300 px-2"
                     >
                       ✕
                     </button>
                   )}
                 </div>
-              ))}
-            </div>
-          </div>
 
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">Notas (Opcional)</label>
-            <input
-              type="text"
-              placeholder="Ex: RPE 8, boa progressão no supino..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full bg-gray-700 text-white p-3 rounded outline-none focus:ring-2 focus:ring-indigo-500"
-            />
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[10px] text-gray-400 block mb-1">Séries</label>
+                    <input
+                      type="number"
+                      value={ex.sets}
+                      onChange={(e) => updateExercise(index, 'sets', Number(e.target.value))}
+                      className="w-full bg-gray-900 border border-gray-800 text-white p-2 rounded text-sm outline-none focus:border-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-400 block mb-1">Reps</label>
+                    <input
+                      type="number"
+                      value={ex.reps}
+                      onChange={(e) => updateExercise(index, 'reps', Number(e.target.value))}
+                      className="w-full bg-gray-900 border border-gray-800 text-white p-2 rounded text-sm outline-none focus:border-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-400 block mb-1">Carga (kg)</label>
+                    <input
+                      type="number"
+                      value={ex.weight}
+                      onChange={(e) => updateExercise(index, 'weight', Number(e.target.value))}
+                      className="w-full bg-gray-900 border border-gray-800 text-white p-2 rounded text-sm outline-none focus:border-purple-500"
+                    />
+                  </div>
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="Notas (Opcional, ex: RPE 8, boa progressão...)"
+                  value={ex.notes || ''}
+                  onChange={(e) => updateExercise(index, 'notes', e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-800 text-gray-300 p-2 rounded text-xs outline-none focus:border-purple-500"
+                />
+              </div>
+            ))}
           </div>
 
           <button
-            onClick={addWorkout}
-            disabled={loading || !name.trim()}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white py-3 rounded font-bold transition-colors"
+            type="submit"
+            disabled={loading}
+            className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white py-3 rounded-lg font-bold text-sm transition-colors shadow-lg shadow-purple-600/20"
           >
             {loading ? 'A guardar...' : 'Guardar Treino'}
           </button>
-        </div>
+        </form>
 
+        {/* Histórico */}
         <div className="space-y-4">
-          <h2 className="text-xl font-bold mb-4">Histórico</h2>
+          <h2 className="text-lg font-bold tracking-tight">Histórico de Treinos</h2>
           {workouts.length === 0 && (
-            <p className="text-gray-400 text-center py-4">Nenhum treino registado ainda.</p>
+            <p className="text-gray-500 text-center py-8 text-sm">Nenhum treino registado ainda.</p>
           )}
-          {workouts.map((workout) => (
-            <div key={workout.id} className="bg-gray-800 p-5 rounded-lg space-y-3">
+
+          {workouts.map((w) => (
+            <div key={w.id} className="bg-gray-900 border border-gray-800 p-5 rounded-xl space-y-3 shadow-md">
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="font-bold text-lg">{workout.name}</h3>
-                  <p className="text-gray-400 text-xs">{workout.date}</p>
+                  <h3 className="font-bold text-base text-white">{w.name}</h3>
+                  <p className="text-xs text-gray-400">{w.date}</p>
                 </div>
                 <button
-                  onClick={() => deleteWorkout(workout.id)}
-                  className="text-red-400 hover:text-red-300 text-sm font-medium transition-colors"
+                  onClick={() => handleDelete(w.id)}
+                  className="text-xs text-red-400 hover:text-red-300 transition-colors"
                 >
-                  Eliminar
+                  Apagar
                 </button>
               </div>
 
-              {workout.notes && (
-                <p className="text-sm text-gray-300 italic bg-gray-750 p-2 rounded border-l-2 border-indigo-500">
-                  {workout.notes}
-                </p>
-              )}
-
-              {workout.exercises && workout.exercises.length > 0 && (
-                <div className="space-y-1 pt-1">
-                  <p className="text-xs font-semibold text-gray-400">Exercícios:</p>
-                  <div className="grid gap-1">
-                    {workout.exercises.map((ex, i) => (
-                      <div key={i} className="flex justify-between text-sm bg-gray-700/50 p-2 rounded">
-                        <span className="font-medium">{ex.name}</span>
-                        <span className="text-indigo-300 font-mono text-xs">
-                          {ex.sets}x{ex.reps} — {ex.weight_kg} kg
-                        </span>
-                      </div>
-                    ))}
+              <div className="border-t border-gray-800/80 pt-3 space-y-2">
+                {w.exercises?.map((ex, idx) => (
+                  <div key={idx} className="flex justify-between text-xs bg-gray-950 p-2.5 rounded border border-gray-800/50">
+                    <span className="font-semibold text-gray-200">{ex.name}</span>
+                    <span className="font-mono text-gray-400">
+                      {ex.sets}x{ex.reps} — {ex.weight}kg {ex.notes && <span className="text-purple-400">({ex.notes})</span>}
+                    </span>
                   </div>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
           ))}
         </div>
