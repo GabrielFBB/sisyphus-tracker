@@ -6,33 +6,14 @@ import Link from 'next/link';
 import { api } from '@/app/lib/api';
 import { getToken, clearTokens } from '@/app/lib/auth';
 
-interface Habit {
-  id: number;
-  name: string;
-  completed_today?: boolean;
-}
-
-interface Book {
-  id: number;
-  title: string;
-  author: string;
-  current_page: number;
-  total_pages: number;
-}
-
-interface Workout {
-  id: number;
-  name: string;
-  date: string;
-  notes: string;
-}
-
 export default function DashboardPage() {
   const router = useRouter();
-  const [habits, setHabits] = useState<Habit[]>([]);
-  const [books, setBooks] = useState<Book[]>([]);
-  const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    habitsCount: 0,
+    readingsCount: 0,
+    workoutsCount: 0,
+  });
 
   useEffect(() => {
     const token = getToken();
@@ -40,139 +21,127 @@ export default function DashboardPage() {
       router.push('/login');
       return;
     }
-    loadDashboardData();
-  }, []);
+    fetchDashboardData();
+  }, [router]);
 
-  const loadDashboardData = async () => {
+  const fetchDashboardData = async () => {
     try {
-      const [habitsRes, booksRes, workoutsRes] = await Promise.allSettled([
-        api.get('/habits/'),
-        api.get('/reading/'),
-        api.get('/workouts/'),
+      const [habits, readings, workouts] = await Promise.all([
+        api.get('/habits/').catch(() => []),
+        api.get('/readings/').catch(() => []),
+        api.get('/workouts/').catch(() => []),
       ]);
 
-      if (habitsRes.status === 'fulfilled' && Array.isArray(habitsRes.value)) {
-        setHabits(habitsRes.value);
-      }
-      if (booksRes.status === 'fulfilled' && Array.isArray(booksRes.value)) {
-        setBooks(booksRes.value);
-      }
-      if (workoutsRes.status === 'fulfilled' && Array.isArray(workoutsRes.value)) {
-        setWorkouts(workoutsRes.value);
-      }
+      setStats({
+        habitsCount: Array.isArray(habits) ? habits.length : 0,
+        readingsCount: Array.isArray(readings) ? readings.length : 0,
+        workoutsCount: Array.isArray(workouts) ? workouts.length : 0,
+      });
     } catch {
-      // O api.ts trata o 401 e redireciona se necessário
+      // Falha silenciosa
     } finally {
       setLoading(false);
     }
   };
 
-  const completedHabitsCount = habits.filter((h) => h.completed_today).length;
-  const latestWorkout = workouts[0];
-  const activeBook = books[0];
+  const handleLogout = () => {
+    clearTokens();
+    router.push('/login');
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
+        <div className="animate-pulse text-indigo-400 font-medium">A carregar o seu santuário...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold">SisyphusTracker</h1>
-            <p className="text-gray-400 text-sm mt-1">Visão geral da tua rotina</p>
+    <div className="min-h-screen bg-gray-950 text-white">
+      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-xl font-bold tracking-wider bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+              SisyphusTracker
+            </span>
           </div>
           <button
-            onClick={() => {
-              clearTokens();
-              router.push('/login');
-            }}
-            className="text-sm text-gray-400 hover:text-white transition-colors"
+            onClick={handleLogout}
+            className="text-xs text-gray-400 hover:text-white transition-colors bg-gray-800 px-3 py-1.5 rounded-md border border-gray-700"
           >
-            Sair
+            Terminar Sessão
           </button>
         </div>
+      </header>
 
-        {loading ? (
-          <p className="text-gray-400 text-center py-12">A carregar os teus dados...</p>
-        ) : (
-          <div className="grid md:grid-cols-3 gap-6 mb-8">
-            {/* Card Hábitos */}
-            <div className="bg-gray-800 p-6 rounded-lg flex flex-col justify-between">
-              <div>
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-semibold">Hábitos</h2>
-                  <span className="text-xs bg-indigo-500/20 text-indigo-400 px-2 py-1 rounded">Hoje</span>
-                </div>
-                <p className="text-3xl font-bold text-emerald-400 mb-1">
-                  {completedHabitsCount} / {habits.length}
-                </p>
-                <p className="text-gray-400 text-sm">concluídos hoje</p>
-              </div>
-              <Link
-                href="/habits"
-                className="mt-6 text-sm text-indigo-400 hover:text-indigo-300 font-medium inline-block"
-              >
-                Gerir hábitos →
-              </Link>
-            </div>
-
-            {/* Card Treinos */}
-            <div className="bg-gray-800 p-6 rounded-lg flex flex-col justify-between">
-              <div>
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-semibold">Último Treino</h2>
-                  <span className="text-xs bg-indigo-500/20 text-indigo-400 px-2 py-1 rounded">Treino</span>
-                </div>
-                {latestWorkout ? (
-                  <div>
-                    <p className="text-lg font-bold">{latestWorkout.name}</p>
-                    <p className="text-gray-400 text-sm">{latestWorkout.date}</p>
-                    {latestWorkout.notes && (
-                      <p className="text-gray-400 text-xs mt-2 line-clamp-2">{latestWorkout.notes}</p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-gray-400 text-sm">Nenhum treino registado.</p>
-                )}
-              </div>
-              <Link
-                href="/workout"
-                className="mt-6 text-sm text-indigo-400 hover:text-indigo-300 font-medium inline-block"
-              >
-                Registar treino →
-              </Link>
-            </div>
-
-            {/* Card Leituras */}
-            <div className="bg-gray-800 p-6 rounded-lg flex flex-col justify-between">
-              <div>
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-semibold">Leitura Atual</h2>
-                  <span className="text-xs bg-indigo-500/20 text-indigo-400 px-2 py-1 rounded">Livro</span>
-                </div>
-                {activeBook ? (
-                  <div>
-                    <p className="text-lg font-bold truncate">{activeBook.title}</p>
-                    <p className="text-gray-400 text-sm">{activeBook.author}</p>
-                    {activeBook.total_pages > 0 && (
-                      <p className="text-indigo-400 text-xs mt-2 font-semibold">
-                        Pág. {activeBook.current_page} de {activeBook.total_pages} (
-                        {Math.round((activeBook.current_page / activeBook.total_pages) * 100)}%)
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-gray-400 text-sm">Nenhum livro em leitura.</p>
-                )}
-              </div>
-              <Link
-                href="/reading"
-                className="mt-6 text-sm text-indigo-400 hover:text-indigo-300 font-medium inline-block"
-              >
-                Atualizar leituras →
-              </Link>
-            </div>
+      <main className="max-w-6xl mx-auto px-6 py-10 space-y-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-extrabold tracking-tight">Painel de Controlo</h1>
+            <p className="text-gray-400 text-sm mt-1">Registe os seus passos diários rumo à consistência.</p>
           </div>
-        )}
-      </div>
+          <div className="text-xs text-indigo-300 bg-indigo-950/60 border border-indigo-800/50 px-3 py-2 rounded-lg">
+            "É preciso imaginar Sísifo feliz." — Albert Camus
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-6">
+          <Link href="/habits" className="group bg-gray-900 border border-gray-800 hover:border-indigo-500/50 p-6 rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/10 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-lg group-hover:scale-110 transition-transform">
+                  ⚡
+                </span>
+                <span className="text-2xl font-bold font-mono text-gray-200">{stats.habitsCount}</span>
+              </div>
+              <h2 className="text-lg font-bold text-white group-hover:text-indigo-300 transition-colors">Hábitos Diários</h2>
+              <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+                Controlo de rotinas e micro-ações diárias para criar consistência mecânica.
+              </p>
+            </div>
+            <div className="mt-6 flex items-center text-xs font-semibold text-indigo-400 group-hover:translate-x-1 transition-transform">
+              Gerir hábitos →
+            </div>
+          </Link>
+
+          <Link href="/reading" className="group bg-gray-900 border border-gray-800 hover:border-emerald-500/50 p-6 rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/10 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-lg group-hover:scale-110 transition-transform">
+                  📚
+                </span>
+                <span className="text-2xl font-bold font-mono text-gray-200">{stats.readingsCount}</span>
+              </div>
+              <h2 className="text-lg font-bold text-white group-hover:text-emerald-300 transition-colors">Leituras & Livros</h2>
+              <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+                Acompanhamento de páginas, obras literárias e progresso de leitura.
+              </p>
+            </div>
+            <div className="mt-6 flex items-center text-xs font-semibold text-emerald-400 group-hover:translate-x-1 transition-transform">
+              Ver leituras →
+            </div>
+          </Link>
+
+          <Link href="/workout" className="group bg-gray-900 border border-gray-800 hover:border-purple-500/50 p-6 rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="p-2.5 bg-purple-500/10 text-purple-400 rounded-lg group-hover:scale-110 transition-transform">
+                  🏋️
+                </span>
+                <span className="text-2xl font-bold font-mono text-gray-200">{stats.workoutsCount}</span>
+              </div>
+              <h2 className="text-lg font-bold text-white group-hover:text-purple-300 transition-colors">Treinos & Cargas</h2>
+              <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+                Registo de sessões físicas, séries, repetições e progressão de carga.
+              </p>
+            </div>
+            <div className="mt-6 flex items-center text-xs font-semibold text-purple-400 group-hover:translate-x-1 transition-transform">
+              Registar treino →
+            </div>
+          </Link>
+        </div>
+      </main>
     </div>
   );
 }
