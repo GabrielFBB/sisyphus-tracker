@@ -57,6 +57,25 @@ function lastDays(n: number): string[] {
   return days;
 }
 
+const TIMER_KEY = 'sisyphus_timers';
+
+function readTimers(): Record<number, number> {
+  if (typeof window === 'undefined') return {};
+  try {
+    return JSON.parse(localStorage.getItem(TIMER_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function formatElapsed(totalSeconds: number): string {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+}
+
 export default function HabitsPage() {
   const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
@@ -69,6 +88,9 @@ export default function HabitsPage() {
   const [unit, setUnit] = useState('');
 
   const [inputs, setInputs] = useState<Record<number, string>>({});
+  const [timers, setTimers] = useState<Record<number, number>>({});
+  const [now, setNow] = useState(Date.now());
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -78,8 +100,20 @@ export default function HabitsPage() {
       return;
     }
     setAuthorized(true);
+    setTimers(readTimers());
     fetchHabits();
   }, [router]);
+
+  useEffect(() => {
+    if (Object.keys(timers).length === 0) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [timers]);
+
+  const saveTimers = (next: Record<number, number>) => {
+    setTimers(next);
+    localStorage.setItem(TIMER_KEY, JSON.stringify(next));
+  };
 
   const fetchHabits = async () => {
     try {
@@ -123,6 +157,9 @@ export default function HabitsPage() {
   const deleteHabit = async (id: number) => {
     try {
       await api.delete(`/habits/${id}/`);
+      const next = { ...timers };
+      delete next[id];
+      saveTimers(next);
       await fetchHabits();
     } catch {
       setError('Erro ao remover o hábito.');
@@ -153,6 +190,28 @@ export default function HabitsPage() {
       await fetchHabits();
     } catch {
       setError('Erro ao registar o progresso.');
+    }
+  };
+
+  const startTimer = (habitId: number) => {
+    saveTimers({ ...timers, [habitId]: Date.now() });
+  };
+
+  const cancelTimer = (habitId: number) => {
+    const next = { ...timers };
+    delete next[habitId];
+    saveTimers(next);
+  };
+
+  const stopTimer = async (habit: Habit, currentValue: number) => {
+    const startedAt = timers[habit.id];
+    if (!startedAt) return;
+    const minutes = (Date.now() - startedAt) / 60000;
+    const next = { ...timers };
+    delete next[habit.id];
+    saveTimers(next);
+    if (minutes >= 0.1) {
+      await logToday(habit, currentValue + Math.round(minutes * 10) / 10);
     }
   };
 
@@ -221,7 +280,7 @@ export default function HabitsPage() {
               >
                 <option value="binary">Sim/Não — fiz ou não fiz</option>
                 <option value="quantity">Quantidade — litros, páginas...</option>
-                <option value="duration">Duração — minutos</option>
+                <option value="duration">Duração — minutos, com timer</option>
               </select>
             </div>
           </div>
@@ -283,12 +342,15 @@ export default function HabitsPage() {
             const logs = habit.logs || [];
             const target = habit.target && habit.target > 0 ? habit.target : 1;
             const isBinary = habit.habit_type === 'binary' || !habit.habit_type;
+            const isDuration = habit.habit_type === 'duration';
             const streak = calcStreak(logs);
             const todayLog = logs.find((l) => l.date === today());
             const value = todayLog?.value ?? 0;
             const percent = Math.min(100, Math.round((value / target) * 100));
             const doneToday = todayLog?.completed ?? false;
             const doneDates = new Set(logs.filter((l) => l.completed).map((l) => l.date));
+            const startedAt = timers[habit.id];
+            const elapsed = startedAt ? Math.floor((now - startedAt) / 1000) : 0;
 
             return (
               <div key={habit.id} className="bg-gray-900 border border-gray-800 p-5 rounded-xl space-y-4 shadow-md">
@@ -344,11 +406,44 @@ export default function HabitsPage() {
                         style={{ width: `${percent}%` }}
                       />
                     </div>
+
+                    {isDuration && (
+                      startedAt ? (
+                        <div className="flex items-center gap-3 bg-gray-950 border border-indigo-500/40 rounded-lg p-3">
+                          <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse shrink-0" />
+                          <span className="font-mono text-lg font-bold text-indigo-300 tabular-nums">
+                            {formatElapsed(elapsed)}
+                          </span>
+                          <div className="flex gap-2 ml-auto">
+                            <button
+                              onClick={() => stopTimer(habit, value)}
+                              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-4 py-2 rounded font-semibold"
+                            >
+                              Parar e registar
+                            </button>
+                            <button
+                              onClick={() => cancelTimer(habit.id)}
+                              className="text-xs text-gray-500 hover:text-white px-2"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => startTimer(habit.id)}
+                          className="w-full bg-gray-950 border border-gray-800 hover:border-indigo-500 text-gray-400 hover:text-white py-2.5 rounded-lg text-sm font-semibold transition-colors"
+                        >
+                          ▶ Iniciar timer
+                        </button>
+                      )
+                    )}
+
                     <div className="flex items-center gap-2 pt-1">
                       <input
                         type="text"
                         inputMode="decimal"
-                        placeholder={`Somar ${habit.unit || 'valor'}`}
+                        placeholder={`Somar ${habit.unit || 'valor'} manualmente`}
                         value={inputs[habit.id] ?? ''}
                         onChange={(e) => setInputs((p) => ({ ...p, [habit.id]: e.target.value }))}
                         onKeyDown={(e) => {
