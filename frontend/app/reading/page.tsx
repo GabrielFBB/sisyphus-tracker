@@ -113,8 +113,14 @@ export default function ReadingPage() {
 
   const updateStatus = async (id: number, newStatus: 'unread' | 'reading' | 'completed', total: number) => {
     const current = newStatus === 'completed' ? total : newStatus === 'reading' ? 1 : 0;
+    const target = readings.find(r => r.id === id);
+    if (!target) return;
+
     try {
-      await api.patch(`/readings/${id}/`, {
+      await api.put(`/readings/${id}/`, {
+        title: target.title,
+        author: target.author,
+        total_pages: target.total_pages,
         status: newStatus,
         current_page: current,
       });
@@ -127,8 +133,14 @@ export default function ReadingPage() {
   const updateProgress = async (id: number, newPage: number, total: number) => {
     const clampedPage = Math.max(0, Math.min(newPage, total));
     const newStatus = clampedPage >= total ? 'completed' : clampedPage > 0 ? 'reading' : 'unread';
+    const target = readings.find(r => r.id === id);
+    if (!target) return;
+
     try {
-      await api.patch(`/readings/${id}/`, {
+      await api.put(`/readings/${id}/`, {
+        title: target.title,
+        author: target.author,
+        total_pages: target.total_pages,
         current_page: clampedPage,
         status: newStatus,
       });
