@@ -10,3 +10,4 @@ frontend/.next/
 
 # Docker
 postgres_data/
+build-output.txt
