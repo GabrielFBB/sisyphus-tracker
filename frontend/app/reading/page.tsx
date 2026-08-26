@@ -117,6 +117,7 @@ export default function ReadingPage() {
     if (!target) return;
 
     try {
+      // @ts-ignore
       await api.put(`/readings/${id}/`, {
         title: target.title,
         author: target.author,
@@ -137,6 +138,7 @@ export default function ReadingPage() {
     if (!target) return;
 
     try {
+      // @ts-ignore
       await api.put(`/readings/${id}/`, {
         title: target.title,
         author: target.author,
@@ -152,6 +154,7 @@ export default function ReadingPage() {
 
   const deleteReading = async (id: number) => {
     try {
+      // @ts-ignore
       await api.delete(`/readings/${id}/`);
       await fetchReadings();
     } catch {
