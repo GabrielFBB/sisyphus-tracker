@@ -17,6 +17,40 @@ interface Book {
   notes: string;
 }
 
+interface ParsedBook {
+  title: string;
+  author: string;
+}
+
+const normalize = (s: string) =>
+  s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+
+function parseBulk(text: string): ParsedBook[] {
+  const chunks = text
+    .split(/[\n!;/]+/)
+    .map((c) => c.trim())
+    .filter((c) => c.length > 1);
+
+  return chunks.map((chunk) => {
+    const cleaned = chunk.replace(/^[\s\-–—•*]+/, '').trim();
+
+    const dashMatch = cleaned.split(/\s[-–—]\s|[-–—]/);
+    if (dashMatch.length > 1 && dashMatch[1].trim()) {
+      return {
+        title: dashMatch[0].trim(),
+        author: dashMatch.slice(1).join(' ').trim(),
+      };
+    }
+
+    const byMatch = cleaned.match(/^(.+?)\s+d[eao]\s+([A-ZÀ-Ú][\wÀ-ú.'-]*(?:\s+[A-ZÀ-Ú][\wÀ-ú.'-]*)*)$/);
+    if (byMatch) {
+      return { title: byMatch[1].trim(), author: byMatch[2].trim() };
+    }
+
+    return { title: cleaned, author: 'Desconhecido' };
+  }).filter((b) => b.title.length > 1);
+}
+
 export default function ReadingPage() {
   const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
@@ -31,6 +65,11 @@ export default function ReadingPage() {
 
   const [bulkText, setBulkText] = useState('');
   const [bulkStatus, setBulkStatus] = useState<Status>('want');
+  const [bulkResult, setBulkResult] = useState('');
+
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editAuthor, setEditAuthor] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -55,6 +94,10 @@ export default function ReadingPage() {
 
   const addSingle = async () => {
     if (!title.trim() || !author.trim()) return;
+    if (books.some((b) => normalize(b.title) === normalize(title))) {
+      setError(`"${title.trim()}" já está na tua lista.`);
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -79,20 +122,37 @@ export default function ReadingPage() {
     if (!bulkText.trim()) return;
     setLoading(true);
     setError('');
-    const lines = bulkText.split('\n').filter((l) => l.trim() !== '');
+    setBulkResult('');
+
+    const parsed = parseBulk(bulkText);
+    const existing = new Set(books.map((b) => normalize(b.title)));
+    const seen = new Set<string>();
+
+    let added = 0;
+    let skipped = 0;
+
     try {
-      for (const line of lines) {
-        const parts = line.split(/[-–—]/);
-        const bookTitle = (parts[0] || line).trim();
-        const bookAuthor = parts[1]?.trim() || 'Desconhecido';
+      for (const book of parsed) {
+        const key = normalize(book.title);
+        if (existing.has(key) || seen.has(key)) {
+          skipped++;
+          continue;
+        }
+        seen.add(key);
         await api.post('/books/', {
-          title: bookTitle,
-          author: bookAuthor,
+          title: book.title,
+          author: book.author,
           status: bulkStatus,
           owned: bulkStatus === 'done',
         });
+        added++;
       }
       setBulkText('');
+      setBulkResult(
+        skipped > 0
+          ? `${added} adicionados, ${skipped} já existiam.`
+          : `${added} livros adicionados.`
+      );
       await fetchBooks();
     } catch {
       setError('Erro ao processar a lista.');
@@ -115,6 +175,18 @@ export default function ReadingPage() {
     } catch {
       setError('Erro ao atualizar o livro.');
     }
+  };
+
+  const startEdit = (book: Book) => {
+    setEditingId(book.id);
+    setEditTitle(book.title);
+    setEditAuthor(book.author);
+  };
+
+  const saveEdit = async (book: Book) => {
+    if (!editTitle.trim()) return;
+    await updateBook(book, { title: editTitle.trim(), author: editAuthor.trim() || 'Desconhecido' });
+    setEditingId(null);
   };
 
   const deleteBook = async (id: number) => {
@@ -158,6 +230,11 @@ export default function ReadingPage() {
         {error && (
           <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm">
             {error}
+          </div>
+        )}
+        {bulkResult && (
+          <div className="bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 p-3 rounded-lg text-sm">
+            {bulkResult}
           </div>
         )}
 
@@ -241,16 +318,31 @@ export default function ReadingPage() {
             <div className="space-y-4 pt-2">
               <div>
                 <label className="text-xs text-gray-400 block mb-1">
-                  Um livro por linha, no formato <code className="text-emerald-400">Título - Autor</code>
+                  Cola a tua lista. Separa livros com nova linha, <code className="text-emerald-400">!</code>, <code className="text-emerald-400">;</code> ou <code className="text-emerald-400">/</code>. O autor é detetado por <code className="text-emerald-400">-</code> ou pela palavra <code className="text-emerald-400">de</code>.
                 </label>
                 <textarea
-                  rows={4}
-                  placeholder={'Crime e Castigo - Dostoiévski\nA Metamorfose - Kafka'}
+                  rows={5}
+                  placeholder={'Crime e Castigo - Dostoiévski\nSer e tempo de Heidegger! O processo de Kafka!'}
                   value={bulkText}
                   onChange={(e) => setBulkText(e.target.value)}
                   className="w-full bg-gray-950 border border-gray-800 text-white p-3 rounded-lg text-sm outline-none focus:border-emerald-500"
                 />
               </div>
+
+              {bulkText.trim() && (
+                <div className="bg-gray-950 border border-gray-800 rounded-lg p-3 max-h-40 overflow-y-auto">
+                  <p className="text-xs text-gray-500 mb-2">Pré-visualização ({parseBulk(bulkText).length} livros):</p>
+                  <ul className="space-y-1">
+                    {parseBulk(bulkText).map((b, i) => (
+                      <li key={i} className="text-xs text-gray-300">
+                        <span className="text-white">{b.title}</span>
+                        <span className="text-gray-500"> — {b.author}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <div>
                 <label className="text-xs text-gray-400 block mb-1">Adicionar todos como:</label>
                 <select
@@ -291,38 +383,79 @@ export default function ReadingPage() {
           )}
           {filtered.map((book) => (
             <div key={book.id} className="bg-gray-900 border border-gray-800 p-5 rounded-xl shadow-md">
-              <div className="flex justify-between items-start gap-4">
-                <div className="min-w-0">
-                  <h3 className="font-bold text-base text-white truncate">{book.title}</h3>
-                  <p className="text-xs text-gray-400">{book.author}</p>
-                  <label className="flex items-center gap-2 text-xs text-gray-300 mt-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={book.owned}
-                      onChange={(e) => updateBook(book, { owned: e.target.checked })}
-                      className="w-4 h-4 accent-emerald-500"
-                    />
-                    Já tenho
-                  </label>
+              {editingId === book.id ? (
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    placeholder="Título"
+                    className="w-full bg-gray-950 border border-gray-800 text-white p-2 rounded text-sm outline-none focus:border-emerald-500"
+                  />
+                  <input
+                    type="text"
+                    value={editAuthor}
+                    onChange={(e) => setEditAuthor(e.target.value)}
+                    placeholder="Autor"
+                    className="w-full bg-gray-950 border border-gray-800 text-white p-2 rounded text-sm outline-none focus:border-emerald-500"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => saveEdit(book)}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-4 py-2 rounded font-semibold"
+                    >
+                      Guardar
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="text-xs text-gray-400 hover:text-white px-4 py-2"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <select
-                    value={book.status}
-                    onChange={(e) => updateBook(book, { status: e.target.value as Status })}
-                    className="bg-gray-950 border border-gray-800 text-xs text-gray-300 rounded px-2 py-1 outline-none"
-                  >
-                    <option value="want">Por Ler</option>
-                    <option value="reading">A Ler</option>
-                    <option value="done">Lido</option>
-                  </select>
-                  <button
-                    onClick={() => deleteBook(book.id)}
-                    className="text-xs text-red-400 hover:text-red-300 transition-colors"
-                  >
-                    Remover
-                  </button>
+              ) : (
+                <div className="flex justify-between items-start gap-4">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-base text-white">{book.title}</h3>
+                    <p className={`text-xs ${book.author === 'Desconhecido' ? 'text-amber-500/70' : 'text-gray-400'}`}>
+                      {book.author}
+                    </p>
+                    <label className="flex items-center gap-2 text-xs text-gray-300 mt-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={book.owned}
+                        onChange={(e) => updateBook(book, { owned: e.target.checked })}
+                        className="w-4 h-4 accent-emerald-500"
+                      />
+                      Já tenho
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <select
+                      value={book.status}
+                      onChange={(e) => updateBook(book, { status: e.target.value as Status })}
+                      className="bg-gray-950 border border-gray-800 text-xs text-gray-300 rounded px-2 py-1 outline-none"
+                    >
+                      <option value="want">Por Ler</option>
+                      <option value="reading">A Ler</option>
+                      <option value="done">Lido</option>
+                    </select>
+                    <button
+                      onClick={() => startEdit(book)}
+                      className="text-xs text-gray-400 hover:text-white transition-colors"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => deleteBook(book.id)}
+                      className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                    >
+                      Remover
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           ))}
         </div>
