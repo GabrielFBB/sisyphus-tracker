@@ -46,6 +46,7 @@ export default function WorkoutPage() {
 
   const fetchWorkouts = async () => {
     try {
+      // APENAS 1 ARGUMENTO (endpoint)
       const data = await api.get('/workouts/');
       if (Array.isArray(data)) setWorkouts(data as Workout[]);
     } catch {
@@ -75,6 +76,7 @@ export default function WorkoutPage() {
     const validExercises = exercises.filter((ex) => ex.name.trim() !== '');
 
     try {
+      // APENAS 2 ARGUMENTOS (endpoint, body)
       await api.post('/workouts/', {
         name,
         date,
@@ -95,6 +97,7 @@ export default function WorkoutPage() {
 
   const deleteWorkout = async (id: number) => {
     try {
+      // APENAS 1 ARGUMENTO (endpoint)
       await api.delete(`/workouts/${id}/`);
       await fetchWorkouts();
     } catch {
