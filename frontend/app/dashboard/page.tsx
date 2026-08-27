@@ -126,6 +126,9 @@ export default function DashboardPage() {
   const sortedWorkouts = [...workouts].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const workoutsThisMonth = workouts.filter((w) => w.date?.startsWith(today().slice(0, 7))).length;
 
+  const rockX = 20 + (habitProgress / 100) * 280;
+  const rockY = 72 - (habitProgress / 100) * 46;
+
   return (
     <div className="min-h-screen bg-[#0b0d10] text-[#e8e8e6]">
       <header className="border-b border-[#1c1f26]">
@@ -164,14 +167,36 @@ export default function DashboardPage() {
                 </span>
               </div>
 
-              <div className="h-2 bg-[#0b0d10] rounded-full overflow-hidden mt-4">
-                <div
-                  className="h-full bg-[#639922] rounded-full transition-all duration-500"
-                  style={{ width: `${habitProgress}%` }}
+              <svg viewBox="0 0 320 90" className="w-full mt-3" aria-hidden="true">
+                <line x1="20" y1="72" x2="300" y2="26" stroke="#26303f" strokeWidth="2" strokeLinecap="round" />
+                <line
+                  x1="20"
+                  y1="72"
+                  x2={rockX}
+                  y2={rockY}
+                  stroke="#639922"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  style={{ transition: 'all 500ms' }}
                 />
-              </div>
+                <circle cx="300" cy="20" r="2.5" fill="#3a4657" />
+                <g
+                  style={{
+                    transform: `translate(${rockX}px, ${rockY - 12}px)`,
+                    transition: 'transform 500ms',
+                  }}
+                >
+                  <path d="M 0 -11 L 6 -9 L 10 -3 L 10 5 L 4 10 L -3 11 L -9 6 L -11 0 L -8 -7 L -3 -11 Z" fill="#7d7d78" />
+                  <path d="M 0 -11 L 6 -9 L 4 -3 L -2 -5 Z" fill="#918f8a" />
+                  <path d="M -8 -7 L -3 -11 L -2 -5 L -7 -1 Z" fill="#a3a19b" />
+                  <path d="M -11 0 L -7 -1 L -5 5 L -9 6 Z" fill="#67665f" />
+                  <path d="M 4 -3 L 10 5 L 4 10 L 1 4 Z" fill="#67665f" />
+                  <path d="M -2 -5 L 4 -3 L 1 4 L -5 5 Z" fill="#8a8883" />
+                  <path d="M -5 5 L 1 4 L 4 10 L -3 11 Z" fill="#74736d" />
+                </g>
+              </svg>
 
-              <div className="mt-5 space-y-2.5">
+              <div className="mt-3 space-y-2.5">
                 {habits.length === 0 && <p className="text-xs text-[#5f5f5b]">Nenhum hábito criado.</p>}
                 {pendingToday.map((h) => (
                   <div key={h.id} className="flex items-center gap-3">
@@ -210,7 +235,6 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </div>
-
               <div className="mt-5 space-y-3">
                 {reading.length === 0 && <p className="text-xs text-[#5f5f5b]">Nenhum livro em curso.</p>}
                 {reading.slice(0, 3).map((b) => (
@@ -250,7 +274,6 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </div>
-
               <div className="mt-5 space-y-2.5">
                 {sortedWorkouts.length === 0 && (
                   <p className="text-xs text-[#5f5f5b]">Nenhum treino registado.</p>

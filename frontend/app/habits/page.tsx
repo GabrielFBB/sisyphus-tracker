@@ -209,6 +209,8 @@ export default function HabitsPage() {
     h.logs?.some((l) => l.date === today() && l.completed)
   ).length;
 
+  const dayPercent = habits.length > 0 ? Math.round((doneTodayCount / habits.length) * 100) : 0;
+
   return (
     <div className="min-h-screen bg-[#0b0d10] text-[#e8e8e6]">
       <header className="border-b border-[#1c1f26] sticky top-0 bg-[#0b0d10]/90 backdrop-blur z-10">
@@ -242,6 +244,45 @@ export default function HabitsPage() {
             {formOpen ? 'Cancelar' : 'Novo hábito'}
           </button>
         </div>
+
+        {habits.length > 0 && (
+          <div className="border border-[#26303f] bg-[#141821] rounded-xl px-6 pt-5 pb-2">
+            <div className="flex items-baseline justify-between">
+              <p className="text-sm text-[#8b8b86]">Progresso do dia</p>
+              <span className={`font-mono text-3xl leading-none font-medium tabular-nums ${dayPercent === 100 ? 'text-[#97C459]' : 'text-[#e8e8e6]'}`}>
+                {dayPercent}%
+              </span>
+            </div>
+            <svg viewBox="0 0 640 100" className="w-full mt-1" aria-hidden="true">
+              <line x1="30" y1="80" x2="610" y2="30" stroke="#26303f" strokeWidth="2" strokeLinecap="round" />
+              <line
+                x1="30"
+                y1="80"
+                x2={30 + (dayPercent / 100) * 580}
+                y2={80 - (dayPercent / 100) * 50}
+                stroke="#639922"
+                strokeWidth="2"
+                strokeLinecap="round"
+                style={{ transition: 'x2 700ms cubic-bezier(0.4, 0, 0.2, 1), y2 700ms cubic-bezier(0.4, 0, 0.2, 1)' }}
+              />
+              <circle cx="610" cy="22" r="3" fill="#3a4657" />
+              <g
+                style={{
+                  transform: `translate(${30 + (dayPercent / 100) * 580}px, ${80 - (dayPercent / 100) * 50 - 14}px) rotate(${(dayPercent / 100) * 540}deg)`,
+                  transition: 'transform 700ms cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+              >
+                <path d="M 0 -13 L 7 -10 L 12 -4 L 12 6 L 5 12 L -4 13 L -11 7 L -13 0 L -9 -8 L -4 -13 Z" fill="#7d7d78" />
+                <path d="M 0 -13 L 7 -10 L 5 -3 L -2 -6 Z" fill="#918f8a" />
+                <path d="M -9 -8 L -4 -13 L -2 -6 L -8 -1 Z" fill="#a3a19b" />
+                <path d="M -13 0 L -8 -1 L -6 6 L -11 7 Z" fill="#67665f" />
+                <path d="M 5 -3 L 12 6 L 5 12 L 1 5 Z" fill="#67665f" />
+                <path d="M -2 -6 L 5 -3 L 1 5 L -6 6 Z" fill="#8a8883" />
+                <path d="M -6 6 L 1 5 L 5 12 L -4 13 Z" fill="#74736d" />
+              </g>
+            </svg>
+          </div>
+        )}
 
         {error && (
           <div className="border border-[#7a2c2c] bg-[#7a2c2c]/10 text-[#f09595] p-3 rounded-lg text-sm">
