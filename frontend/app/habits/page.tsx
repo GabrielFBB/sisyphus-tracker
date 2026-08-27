@@ -253,27 +253,27 @@ export default function HabitsPage() {
                 {dayPercent}%
               </span>
             </div>
-            <svg viewBox="0 0 640 100" className="w-full mt-1" aria-hidden="true">
-              <line x1="30" y1="80" x2="610" y2="30" stroke="#26303f" strokeWidth="2" strokeLinecap="round" />
+            <svg viewBox="0 0 640 92" className="w-full mt-1" aria-hidden="true">
+              <line x1="28" y1="72" x2="606" y2="34" stroke="#26303f" strokeWidth="2" strokeLinecap="round" />
               <line
-                x1="30"
-                y1="80"
-                x2={30 + (dayPercent / 100) * 580}
-                y2={80 - (dayPercent / 100) * 50}
+                x1="28"
+                y1="72"
+                x2={28 + (dayPercent / 100) * 578}
+                y2={72 - (dayPercent / 100) * 38}
                 stroke="#639922"
                 strokeWidth="2"
                 strokeLinecap="round"
                 style={{ transition: 'x2 700ms cubic-bezier(0.4, 0, 0.2, 1), y2 700ms cubic-bezier(0.4, 0, 0.2, 1)' }}
               />
-              <circle cx="610" cy="22" r="3" fill="#3a4657" />
+              <circle cx="606" cy="22" r="2.5" fill="#3a4657" />
               <g
                 style={{
-                  transform: `translate(${30 + (dayPercent / 100) * 580}px, ${80 - (dayPercent / 100) * 50 - 14}px) rotate(${(dayPercent / 100) * 540}deg)`,
+                  transform: `translate(${28 + (dayPercent / 100) * 578}px, ${72 - (dayPercent / 100) * 38 - 15}px) rotate(${(dayPercent / 100) * 540}deg)`,
                   transition: 'transform 700ms cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
               >
-                <path d="M 0 -13 L 7 -10 L 12 -4 L 12 6 L 5 12 L -4 13 L -11 7 L -13 0 L -9 -8 L -4 -13 Z" fill="#7d7d78" />
-                <path d="M 0 -13 L 7 -10 L 5 -3 L -2 -6 Z" fill="#918f8a" />
+                <path d="M 0 -13 L 7 -10.5 L 12 -4 L 12 6 L 5 12 L -4 13 L -11 7 L -13 0 L -9 -8 L -4 -13 Z" fill="#7d7d78" />
+                <path d="M 0 -13 L 7 -10.5 L 5 -3 L -2 -6 Z" fill="#918f8a" />
                 <path d="M -9 -8 L -4 -13 L -2 -6 L -8 -1 Z" fill="#a3a19b" />
                 <path d="M -13 0 L -8 -1 L -6 6 L -11 7 Z" fill="#67665f" />
                 <path d="M 5 -3 L 12 6 L 5 12 L 1 5 Z" fill="#67665f" />
@@ -398,7 +398,7 @@ export default function HabitsPage() {
             return (
               <div
                 key={habit.id}
-                className="border border-[#26303f] bg-[#141821] rounded-r-xl p-5 space-y-5 transition-colors"
+                className="border border-[#26303f] bg-[#141821] p-5 space-y-5 transition-colors"
                 style={{ borderLeft: `3px solid ${accent}`, borderRadius: '0 12px 12px 0' }}
               >
                 <div className="flex justify-between items-start gap-4">

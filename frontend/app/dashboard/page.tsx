@@ -126,8 +126,8 @@ export default function DashboardPage() {
   const sortedWorkouts = [...workouts].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const workoutsThisMonth = workouts.filter((w) => w.date?.startsWith(today().slice(0, 7))).length;
 
-  const rockX = 20 + (habitProgress / 100) * 280;
-  const rockY = 72 - (habitProgress / 100) * 46;
+  const rockX = 14 + (habitProgress / 100) * 292;
+  const rockY = 48 - (habitProgress / 100) * 34;
 
   return (
     <div className="min-h-screen bg-[#0b0d10] text-[#e8e8e6]">
@@ -167,11 +167,11 @@ export default function DashboardPage() {
                 </span>
               </div>
 
-              <svg viewBox="0 0 320 90" className="w-full mt-3" aria-hidden="true">
-                <line x1="20" y1="72" x2="300" y2="26" stroke="#26303f" strokeWidth="2" strokeLinecap="round" />
+              <svg viewBox="0 0 320 60" className="w-full mt-3" aria-hidden="true">
+                <line x1="14" y1="48" x2="306" y2="14" stroke="#26303f" strokeWidth="2" strokeLinecap="round" />
                 <line
-                  x1="20"
-                  y1="72"
+                  x1="14"
+                  y1="48"
                   x2={rockX}
                   y2={rockY}
                   stroke="#639922"
@@ -179,20 +179,20 @@ export default function DashboardPage() {
                   strokeLinecap="round"
                   style={{ transition: 'all 500ms' }}
                 />
-                <circle cx="300" cy="20" r="2.5" fill="#3a4657" />
+                <circle cx="306" cy="8" r="2" fill="#3a4657" />
                 <g
                   style={{
-                    transform: `translate(${rockX}px, ${rockY - 12}px)`,
+                    transform: `translate(${rockX}px, ${rockY - 7}px)`,
                     transition: 'transform 500ms',
                   }}
                 >
-                  <path d="M 0 -11 L 6 -9 L 10 -3 L 10 5 L 4 10 L -3 11 L -9 6 L -11 0 L -8 -7 L -3 -11 Z" fill="#7d7d78" />
-                  <path d="M 0 -11 L 6 -9 L 4 -3 L -2 -5 Z" fill="#918f8a" />
-                  <path d="M -8 -7 L -3 -11 L -2 -5 L -7 -1 Z" fill="#a3a19b" />
-                  <path d="M -11 0 L -7 -1 L -5 5 L -9 6 Z" fill="#67665f" />
-                  <path d="M 4 -3 L 10 5 L 4 10 L 1 4 Z" fill="#67665f" />
-                  <path d="M -2 -5 L 4 -3 L 1 4 L -5 5 Z" fill="#8a8883" />
-                  <path d="M -5 5 L 1 4 L 4 10 L -3 11 Z" fill="#74736d" />
+                  <path d="M 0 -6.5 L 3.5 -5.5 L 6 -2 L 6 3 L 2.5 6 L -2 6.5 L -5.5 3.5 L -6.5 0 L -5 -4 L -2 -6.5 Z" fill="#7d7d78" />
+                  <path d="M 0 -6.5 L 3.5 -5.5 L 2.5 -2 L -1 -3 Z" fill="#918f8a" />
+                  <path d="M -5 -4 L -2 -6.5 L -1 -3 L -4 -0.5 Z" fill="#a3a19b" />
+                  <path d="M -6.5 0 L -4 -0.5 L -3 3 L -5.5 3.5 Z" fill="#67665f" />
+                  <path d="M 2.5 -2 L 6 3 L 2.5 6 L 0.5 2.5 Z" fill="#67665f" />
+                  <path d="M -1 -3 L 2.5 -2 L 0.5 2.5 L -3 3 Z" fill="#8a8883" />
+                  <path d="M -3 3 L 0.5 2.5 L 2.5 6 L -2 6.5 Z" fill="#74736d" />
                 </g>
               </svg>
 
