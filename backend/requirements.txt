@@ -9,4 +9,5 @@ tzdata==2026.3
 gunicorn==21.2.0
 djangorestframework-simplejwt==5.3.1
 dj-database-url==2.1.0
-whitenoise==6.6.0
+whitenoise==6.6.0pytest==9.1.1
+pytest-django==4.14.0
