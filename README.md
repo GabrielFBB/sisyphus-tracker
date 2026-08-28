@@ -6,6 +6,26 @@ O nome vem do mito de Sísifo — a ideia de que o valor está no esforço repet
 
 **Demo:** [sisyphus-tracker.vercel.app](https://sisyphus-tracker.vercel.app)
 
+![Página inicial](docs/Landing.png)
+
+## Ecrãs
+
+**Painel** — progresso do dia, hábitos por fazer, livros em curso, últimos treinos, sequência mais longa, citação e figura do dia.
+
+![Painel](docs/Dashboard.png)
+
+**Hábitos** — três tipos de hábito, barra de progresso, timer para os de duração, sequência de dias e grelha dos últimos 30 dias.
+
+![Hábitos](docs/Habits.png)
+
+**Treinos** — meta semanal com estado visível, modalidade e método, exercícios com séries, repetições e carga.
+
+![Treinos](docs/Workout.png)
+
+**Biblioteca** — três estados, notas de leitura, avaliação com decimais e importação em lote.
+
+![Biblioteca](docs/Reading.png)
+
 ## Funcionalidades
 
 **Autenticação** — registo e login com JWT, tokens renovados automaticamente, rotas protegidas no frontend.
