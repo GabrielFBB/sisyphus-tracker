@@ -1,0 +1,69 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: sisyphus
+          POSTGRES_USER: sisyphus_user
+          POSTGRES_PASSWORD: sisyphus_pass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Correr testes
+        working-directory: backend
+        env:
+          DEBUG: "True"
+          SECRET_KEY: chave-de-teste-para-ci
+          DB_NAME: sisyphus
+          DB_USER: sisyphus_user
+          DB_PASSWORD: sisyphus_pass
+          DB_HOST: localhost
+          DB_PORT: "5432"
+        run: pytest -v
+
+  frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar dependencias
+        working-directory: frontend
+        run: npm ci
+
+      - name: Verificar tipos e build
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: https://sisyphus-tracker.onrender.com
+        run: npm run build
