@@ -1,5 +1,7 @@
 # SisyphusTracker
 
+[![tests](https://github.com/GabrielFBB/sisyphus-tracker/actions/workflows/tests.yml/badge.svg)](https://github.com/GabrielFBB/sisyphus-tracker/actions/workflows/tests.yml)
+
 Aplicação fullstack de desenvolvimento pessoal que reúne três módulos num só sítio: hábitos diários, treinos e biblioteca de leituras.
 
 O nome vem do mito de Sísifo — a ideia de que o valor está no esforço repetido, dia após dia. Cada módulo existe para tornar essa repetição visível.
@@ -73,6 +75,16 @@ sisyphus-tracker/
 ```
 
 O backend expõe uma API REST em `/api/`, com os dados isolados por utilizador em todos os endpoints. O frontend consome essa API e guarda os tokens no browser, renovando o access token automaticamente quando expira.
+
+## Testes
+
+29 testes no backend cobrindo logica de negocio, isolamento de dados por utilizador, autenticacao e restricoes da base de dados.
+
+```bash
+docker-compose exec backend pytest -v
+```
+
+Um workflow do GitHub Actions corre os testes e compila o frontend a cada push, contra um PostgreSQL real.
 
 ## Correr localmente
 
