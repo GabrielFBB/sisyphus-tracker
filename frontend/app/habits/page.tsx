@@ -86,6 +86,8 @@ export default function HabitsPage() {
   const [target, setTarget] = useState('1');
   const [unit, setUnit] = useState('');
 
+  const [editingName, setEditingName] = useState<number | null>(null);
+  const [newName, setNewName] = useState('');
   const [inputs, setInputs] = useState<Record<number, string>>({});
   const [timers, setTimers] = useState<Record<number, number>>({});
   const [now, setNow] = useState(Date.now());
@@ -151,6 +153,23 @@ export default function HabitsPage() {
       setError('Erro ao criar o hábito.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveName = async (habit: Habit) => {
+    if (!newName.trim()) return;
+    try {
+      await api.put(`/habits/${habit.id}/`, {
+        name: newName.trim(),
+        description: habit.description || '',
+        habit_type: habit.habit_type,
+        target: habit.target,
+        unit: habit.unit || '',
+      });
+      setEditingName(null);
+      await fetchHabits();
+    } catch {
+      setError('Erro ao renomear o hábito.');
     }
   };
 
@@ -404,7 +423,28 @@ export default function HabitsPage() {
                 <div className="flex justify-between items-start gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="text-base font-medium text-white">{habit.name}</h2>
+                      {editingName === habit.id ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={newName}
+                            onChange={(e) => setNewName(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && saveName(habit)}
+                            autoFocus
+                            className="bg-[#0b0d10] border border-[#26303f] text-white px-2 py-1 rounded text-base outline-none focus:border-[#639922]"
+                          />
+                          <button onClick={() => saveName(habit)} className="text-xs text-[#97C459] hover:text-[#639922] transition-colors">Guardar</button>
+                          <button onClick={() => setEditingName(null)} className="text-xs text-[#5f5f5b] hover:text-white transition-colors">Cancelar</button>
+                        </div>
+                      ) : (
+                        <h2
+                          onClick={() => { setEditingName(habit.id); setNewName(habit.name); }}
+                          className="text-base font-medium text-white cursor-pointer hover:text-[#97C459] transition-colors"
+                          title="Clica para renomear"
+                        >
+                          {habit.name}
+                        </h2>
+                      )}
                       {streak > 0 && (
                         <span className="font-mono text-[11px] font-medium text-[#412402] bg-[#EF9F27] px-2 py-0.5 rounded-full">
                           {streak} {streak === 1 ? 'dia' : 'dias'}
