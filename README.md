@@ -36,6 +36,8 @@ O nome vem do mito de Sísifo — a ideia de que o valor está no esforço repet
 
 **Leituras** — biblioteca com três estados (por ler, a ler, lido), nota de 0 a 10 com decimais, notas de leitura e marcação de livros que já se possui. Inclui importação em lote: cola-se uma lista de texto livre e um parser separa título e autor, deteta duplicados e mostra uma pré-visualização antes de gravar.
 
+**Instalável no telemóvel** — configurado como PWA, pode ser adicionado ao ecrã principal e abre em ecrã cheio, sem barra do browser.
+
 **Frase do dia** — uma citação filosófica diferente por dia no painel principal.
 
 ## Stack
