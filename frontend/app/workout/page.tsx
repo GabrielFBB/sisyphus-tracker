@@ -85,7 +85,8 @@ export default function WorkoutPage() {
   const [method, setMethod] = useState<Method>('');
   const [notes, setNotes] = useState('');
 
-  const [expanded, setExpanded] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState<number | null>(null);
+  const [newName, setNewName] = useState('');
   const [dateFor, setDateFor] = useState<number | null>(null);
   const [customDate, setCustomDate] = useState(today());
 
@@ -154,6 +155,22 @@ export default function WorkoutPage() {
       setError('Erro ao criar o treino.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveName = async (workout: Workout) => {
+    if (!newName.trim()) return;
+    try {
+      await api.put(`/workouts/${workout.id}/`, {
+        name: newName.trim(),
+        modality: workout.modality,
+        method: workout.method,
+        notes: workout.notes || '',
+      });
+      setEditingName(null);
+      await fetchWorkouts();
+    } catch {
+      setError('Erro ao renomear o treino.');
     }
   };
 
@@ -423,7 +440,6 @@ export default function WorkoutPage() {
             const mLabel = methodLabel(workout.method);
             const doneToday = sessions.some((s) => s.date === today());
             const last = [...sessions].sort((a, b) => b.date.localeCompare(a.date))[0];
-            const isOpen = expanded === workout.id;
 
             return (
               <div
@@ -434,7 +450,28 @@ export default function WorkoutPage() {
                 <div className="flex justify-between items-start gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2.5 flex-wrap">
-                      <h2 className="text-base font-medium text-white">{workout.name}</h2>
+                      {editingName === workout.id ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={newName}
+                            onChange={(e) => setNewName(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && saveName(workout)}
+                            autoFocus
+                            className="bg-[#0b0d10] border border-[#26303f] text-white px-2 py-1 rounded text-base outline-none focus:border-[#EF9F27]"
+                          />
+                          <button onClick={() => saveName(workout)} className="text-xs text-[#EF9F27] hover:text-[#FAC775] transition-colors">Guardar</button>
+                          <button onClick={() => setEditingName(null)} className="text-xs text-[#5f5f5b] hover:text-white transition-colors">Cancelar</button>
+                        </div>
+                      ) : (
+                        <h2
+                          onClick={() => { setEditingName(workout.id); setNewName(workout.name); }}
+                          className="text-base font-medium text-white cursor-pointer hover:text-[#FAC775] transition-colors"
+                          title="Clica para renomear"
+                        >
+                          {workout.name}
+                        </h2>
+                      )}
                       <span className="text-[11px] font-medium px-2 py-0.5 rounded-full" style={{ background: `${mod.color}20`, color: mod.color }}>
                         {mod.label}
                       </span>
@@ -490,15 +527,7 @@ export default function WorkoutPage() {
                   </div>
                 )}
 
-                <button
-                  onClick={() => setExpanded(isOpen ? null : workout.id)}
-                  className="text-xs text-[#5f5f5b] hover:text-white transition-colors"
-                >
-                  {isOpen ? 'Fechar exercícios' : `Exercícios (${exercises.length})`}
-                </button>
-
-                {isOpen && (
-                  <div className="space-y-3 border-t border-[#26303f] pt-4">
+                <div className="space-y-3 border-t border-[#26303f] pt-4">
                     {exercises.map((ex) => (
                       <div key={ex.id}>
                         {editingEx === ex.id ? (
@@ -552,7 +581,6 @@ export default function WorkoutPage() {
                       Adicionar exercício
                     </button>
                   </div>
-                )}
               </div>
             );
           })}
