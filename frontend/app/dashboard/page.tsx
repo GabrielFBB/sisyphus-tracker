@@ -27,10 +27,16 @@ interface Book {
   status: string;
 }
 
+interface WorkoutSession {
+  id: number;
+  workout: number;
+  date: string;
+}
+
 interface Workout {
   id: number;
   name: string;
-  date: string;
+  sessions: WorkoutSession[];
 }
 
 const today = () => new Date().toISOString().split('T')[0];
@@ -123,8 +129,11 @@ export default function DashboardPage() {
   const wantToRead = books.filter((b) => b.status === 'want').length;
   const readCount = books.filter((b) => b.status === 'done').length;
 
-  const sortedWorkouts = [...workouts].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  const workoutsThisMonth = workouts.filter((w) => w.date?.startsWith(today().slice(0, 7))).length;
+  const allSessions = workouts.flatMap((w) =>
+    (w.sessions || []).map((s) => ({ ...s, workoutName: w.name }))
+  );
+  const sortedSessions = [...allSessions].sort((a, b) => b.date.localeCompare(a.date));
+  const workoutsThisMonth = allSessions.filter((s) => s.date.startsWith(today().slice(0, 7))).length;
 
   const rockX = 14 + (habitProgress / 100) * 292;
   const rockY = 48 - (habitProgress / 100) * 34;
@@ -268,23 +277,23 @@ export default function DashboardPage() {
                   </div>
                   <div className="text-right">
                     <span className="font-mono text-xl leading-none font-medium text-[#7d7d78] tabular-nums">
-                      {workouts.length}
+                      {allSessions.length}
                     </span>
                     <p className="text-[11px] text-[#5f5f5b] mt-1.5">no total</p>
                   </div>
                 </div>
               </div>
               <div className="mt-5 space-y-2.5">
-                {sortedWorkouts.length === 0 && (
+                {sortedSessions.length === 0 && (
                   <p className="text-xs text-[#5f5f5b]">Nenhum treino registado.</p>
                 )}
-                {sortedWorkouts.slice(0, 3).map((w) => (
-                  <div key={w.id} className="flex items-center justify-between gap-3">
+                {sortedSessions.slice(0, 3).map((s) => (
+                  <div key={s.id} className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#EF9F27] shrink-0" />
-                      <span className="text-base text-[#d8d8d4] truncate">{w.name}</span>
+                      <span className="text-base text-[#d8d8d4] truncate">{s.workoutName}</span>
                     </div>
-                    <span className="text-sm text-[#9b9b96] shrink-0">{daysAgo(w.date)}</span>
+                    <span className="text-sm text-[#9b9b96] shrink-0">{daysAgo(s.date)}</span>
                   </div>
                 ))}
               </div>
