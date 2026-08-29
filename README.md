@@ -8,6 +8,8 @@ O nome vem do mito de Sísifo — a ideia de que o valor está no esforço repet
 
 **Demo:** [sisyphus-tracker.vercel.app](https://sisyphus-tracker.vercel.app)
 
+Para explorar sem criar conta, entra com o utilizador `Demo` e a palavra-passe `demo12`.
+
 ![Página inicial](docs/Landing.png)
 
 ## Ecrãs
